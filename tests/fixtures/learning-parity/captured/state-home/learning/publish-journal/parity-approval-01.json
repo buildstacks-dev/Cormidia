@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "journal_id": "parity-approval-01",
+  "candidate_id": "cand_parity_org",
+  "candidate_hash": "sha256:12fd2c244f209f4b1701fbbd446f9f015ac1a86af6d1522cee8c13847ef0a33d",
+  "destination": "okf_concept",
+  "tier": "T1",
+  "scope": "org",
+  "approval_ref": "parity-approval-01",
+  "claim": "authorized",
+  "waivers": [],
+  "artifact": {
+    "kind": "bundle_version",
+    "bytes": "---\nname: parity-org-lesson\ndescription: learning concept parity-org-lesson\ntype: lesson\nkeywords:\n  - typecheck\n  - review\nevidence:\n  - ep_web_ticket_0042\nstatus: active\ncreated: 2026-08-21\nupdated: 2026-08-21\nloop:\n  id: lrn_parity_org\n  tier: T1\n  status: active\n  scope: org\n  version: 1\n  claim: authorized\n  topic_key: topic.parity-org-lesson\n---\nRun the repository type-check before reporting completion.\n",
+    "conceptId": "lrn_parity_org",
+    "conceptName": "parity-org-lesson"
+  },
+  "artifact_ref": "<org-home>/learning/bundle/org/parity-org-lesson.md",
+  "manifest_version": "2026.08.21-1",
+  "intervention_id": "int_parity_org",
+  "done_at": "2026-08-21T12:01:00.000Z"
+}

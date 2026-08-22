@@ -210,7 +210,7 @@ const LOOP_SCOPE_SEG = String.raw`(?!\.+(?:/|$))[A-Za-z0-9._-]+`;
 const LOOP_SCOPE_RE = new RegExp(`^(org|roles/${LOOP_SCOPE_SEG}|apps/${LOOP_SCOPE_SEG}(/roles/${LOOP_SCOPE_SEG})?)$`);
 
 /** The V1 scope grammar (spec §2) — shared with the candidate contract
- *  (src/org/learning/candidate.ts) so a proposed_scope that would be rejected
+ *  (src/org/learning-loop/host/candidate.ts) so a proposed_scope that would be rejected
  *  as a concept scope is rejected at the candidate boundary too. */
 export function isValidLoopScope(scope: string): boolean {
   return LOOP_SCOPE_RE.test(scope);

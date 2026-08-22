@@ -19,20 +19,10 @@ export const APPROVAL_TTL_SURFACE_PATHS = {
   typedExecutorComments: ["tests", "hermetic", "cf-b17-cf-c-b17", "cf-b17.test.ts"],
   releaseJourneyComments: ["tests", "hermetic", "cf-j17-i-cf-j17-r-cf-j17-rc-cf-j17-s", "cf-j17-s.test.ts"],
   appRemovalSupport: ["tests", "hermetic", "cf-inv-010-cf-j14-a-cf-j14-i-cf-j14-r-cf-j14-rc-cf-j14-s", "support.ts"],
-  learningCompactionComments: [
-    "tests",
-    "hermetic",
-    "cf-c-b11-cf-sm-learn-c-cf-sm-learn-i-cf-sm-learn-l-cf-sm-learn-r",
-    "cf-sm-learn-c.test.ts",
-  ],
+  learningCompactionComments: ["tests", "hermetic", "cf-c-b32-cf-j12-cf-sm-learn", "cf-sm-learn-c.test.ts"],
   authoritySeedComments: ["tests", "hermetic", "cf-inv-001", "cf-inv-001-seeds.test.ts"],
   objectiveGrantTests: ["tests", "hermetic", "cf-inv-003-cf-split-destructive", "objective-grants.test.ts"],
-  learningJourneyComments: [
-    "tests",
-    "hermetic",
-    "cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251",
-    "cf-j12-s.test.ts",
-  ],
+  learningJourneyComments: ["tests", "hermetic", "cf-c-b32-cf-j12-cf-sm-learn", "cf-j12-s.test.ts"],
 } as const;
 
 export type ApprovalTtlTextSurface = keyof typeof APPROVAL_TTL_SURFACE_PATHS;

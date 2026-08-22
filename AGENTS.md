@@ -22,7 +22,7 @@ inventory.
 | `src/runtime/` | Runtime contract + adapters — `src/runtime/AGENTS.md` |
 | `src/loop/` | Build loop: passes, briefs, quality gates, verdicts, ticket state machine (`docs/loop/design.md`) |
 | `src/org/` | Standing-org layer: lifecycle, bootstrap, scheduler, approvals, budget, learning; `src/org/home.ts` owns the package/org/state boundary |
-| `src/org/learning-loop/` | Host adapters onto the vendored `@cormidia/learning-loop` kernel (Cormidia #467 phase A; B-32): scope/identity/content-policy mapping, episode evidence source, approvals-backed authority port, OKF concept destination, replay-executor seam, composition root. The forked engine under `src/org/learning/` stays the operator path until phase B |
+| `src/org/learning-loop/` | Host composition over the vendored `@cormidia/learning-loop` kernel (Cormidia #467; B-32) — Cormidia's only learning engine: scope/identity/content-policy mapping, scoped episode evidence projection, approvals-backed authority lanes (human gate / routine / operator), OKF, proposal, and ticket destinations, replay-runner binding, kernel candidates/reviews/publish/interventions/experiments/context resolution, host index, legacy readers. `host/` holds the host-owned learning modules (capture, episodes, events, OKF concepts/manifest, policy, canary, replay execution, candidate/verdict stores, efficiency evidence); the forked deterministic engine is gone |
 | `src/observe/` · `src/report/` · `src/narrative/` | Presentation-only leaves — local AGENTS.md ×3 |
 | `src/cli/` | One module per subcommand; `src/cli.ts` is a thin dispatch table |
 | `src/jobs/` · `docs/jobs/` | Ad-hoc job graphs (`cormidia-job`, a SECOND binary) — outside the governed loop: no review, verdicts, tickets, or GitHub authority |

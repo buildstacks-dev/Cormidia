@@ -14,7 +14,7 @@ import { readLifecycleRecord } from "./app-lifecycle.js";
 import type { AppEntry, AppsFile } from "./apps.js";
 import { loadApps, removeExistingApp } from "./apps.js";
 import { listJournals, type TurnJournal } from "./journal.js";
-import { markAppEpisodesResetAbandoned } from "./learning/episode.js";
+import { markAppEpisodesResetAbandoned } from "./learning-loop/host/episode.js";
 import {
   LIFECYCLE_SCHEMA_VERSION,
   assertDirectoryNoSymlink,

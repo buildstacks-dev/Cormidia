@@ -1,0 +1,20 @@
+{
+  "candidate_id": "cand_parity_app",
+  "destination": "okf_concept",
+  "title": "web: run the contract tests before review",
+  "proposed_scope": "apps/web",
+  "proposed_tier": "T1",
+  "claims_efficacy": false,
+  "experiment_ref": null,
+  "episode_ids": [
+    "ep_web_ticket_0042",
+    "ep_web_ticket_0043"
+  ],
+  "event_ids": [],
+  "evidence_refs": [],
+  "content_hash": "sha256:936a59b7e3688036049b75235c0d5bf185b528cb7e18b89c3d6ab0c97b5df778",
+  "draft": {
+    "generated_by": "distiller",
+    "source_app": "web"
+  }
+}

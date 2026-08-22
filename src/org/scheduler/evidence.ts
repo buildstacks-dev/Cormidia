@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { link, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { writeFileAtomic } from "../atomic.js";
-import type { SchedulerMissEvidence } from "../learning/efficiency-evidence.js";
+import type { SchedulerMissEvidence } from "../learning-loop/host/efficiency-evidence.js";
 import { ScheduleDueClaimStore } from "./due-window-claims.js";
 import {
   DEFAULT_SCHEDULER_CADENCE_MINUTES,

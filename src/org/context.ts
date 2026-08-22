@@ -6,9 +6,11 @@ import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import type { ContextBundle, ContextComponent, RoleConfig } from "../runtime/types.js";
 import { resolveAuthority } from "./authority.js";
-import { ticketEpisodeAnchor } from "./learning/episodes.js";
-import { loadLearningPolicy } from "./learning/policy.js";
-import { resolveLearningContext, type ResolvedLearningContext } from "./learning/resolver.js";
+import { resolveGovernedContext, type GovernedResolveResult } from "./learning-loop/context.js";
+import type { CormidiaLearningLoop } from "./learning-loop/loop.js";
+import { learningLoopFor } from "./learning-loop/registry.js";
+import { ticketEpisodeAnchor } from "./learning-loop/host/episodes.js";
+import { loadLearningPolicy } from "./learning-loop/host/policy.js";
 import { selectAttributedExcerpts } from "./memory.js";
 import { definedProps } from "../runtime/optional-properties.js";
 
@@ -37,6 +39,12 @@ interface AssembleContextOptions {
     /** Force a lineage instead of the episode-sticky assignment (M5 replay
      *  arms; see ResolveInput.lineageOverride). */
     lineageOverride?: "stable" | "canary";
+    /** Replay control arms only: concepts the resolve must not load. */
+    excludeConceptIds?: readonly string[];
+    /** The org's composed kernel loop for the receipt-frozen resolution and
+     *  exposure lineage of a governed resolve; composed from the homes when
+     *  omitted on a pinned (`stateHome`) resolve. */
+    loop?: CormidiaLearningLoop;
   };
 }
 
@@ -47,7 +55,7 @@ interface AssembledContext {
   byteSize: number;
   sources: string[];
   /** The turn's pinned resolve, when learning resolution ran. */
-  resolvedLearning?: ResolvedLearningContext;
+  resolvedLearning?: GovernedResolveResult;
 }
 
 export async function assembleContext(options: AssembleContextOptions): Promise<AssembledContext> {
@@ -118,10 +126,16 @@ export async function assembleContext(options: AssembleContextOptions): Promise<
   // Governed concepts resolve first (higher trust, per-scope budget shares);
   // legacy memory trees keep resolving at lowest precedence with whatever
   // bytes remain (trust: legacy seed, design §7.1).
-  let resolved: ResolvedLearningContext | undefined;
+  let resolved: GovernedResolveResult | undefined;
   let legacyCap = options.memoryCapBytes ?? 16 * 1024;
   if (options.learning !== undefined) {
-    resolved = await resolveLearningContext({
+    const loop =
+      options.learning.loop ??
+      (options.learning.stateHome !== undefined && options.learning.lineageOverride === undefined
+        ? await learningLoopFor({ orgHome, stateHome: options.learning.stateHome })
+        : undefined);
+    resolved = await resolveGovernedContext({
+      ...definedProps({ learning: loop }),
       orgHome,
       appWorkdir,
       app: options.app,
@@ -135,6 +149,7 @@ export async function assembleContext(options: AssembleContextOptions): Promise<
       ...definedProps({ budgetCapBytes: options.memoryCapBytes }),
       ...definedProps({ stateHome: options.learning.stateHome }),
       ...definedProps({ lineageOverride: options.learning.lineageOverride }),
+      ...definedProps({ excludeConceptIds: options.learning.excludeConceptIds }),
     });
     legacyCap = Math.min(legacyCap, resolved.bytes_remaining);
     sources.push(join(orgHome, "learning"), join(appWorkdir, ".cormidia", "learning"));

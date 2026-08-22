@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "journal_id": "parity-approval-02",
+  "candidate_id": "cand_parity_app",
+  "candidate_hash": "sha256:7f290294bfb4905dc31c1442b3c30b53bef723ee8d5f849184b54e9cc6afa568",
+  "destination": "okf_concept",
+  "tier": "T1",
+  "scope": "apps/web",
+  "approval_ref": "parity-approval-02",
+  "claim": "authorized",
+  "waivers": [],
+  "artifact": {
+    "kind": "bundle_version",
+    "bytes": "---\nname: parity-app-lesson\ndescription: learning concept parity-app-lesson\ntype: lesson\nkeywords:\n  - typecheck\n  - review\nevidence:\n  - ep_web_ticket_0042\nstatus: active\ncreated: 2026-08-21\nupdated: 2026-08-21\nloop:\n  id: lrn_parity_app\n  tier: T1\n  status: active\n  scope: apps/web\n  version: 1\n  claim: authorized\n  topic_key: topic.parity-app-lesson\n---\nRun the contract tests before requesting review on web.\n",
+    "conceptId": "lrn_parity_app",
+    "conceptName": "parity-app-lesson"
+  },
+  "artifact_ref": "<app-workdir>/.cormidia/learning/bundle/apps/web/parity-app-lesson.md",
+  "manifest_version": "2026.08.21-1",
+  "intervention_id": "int_parity_app",
+  "done_at": "2026-08-21T12:02:00.000Z"
+}

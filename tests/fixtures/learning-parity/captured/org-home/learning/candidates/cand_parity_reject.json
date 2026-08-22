@@ -1,0 +1,16 @@
+{
+  "candidate_id": "cand_parity_reject",
+  "destination": "skill_draft",
+  "title": "noise",
+  "proposed_scope": "org",
+  "proposed_tier": "T1",
+  "claims_efficacy": false,
+  "experiment_ref": null,
+  "error_class": "tooling.parity-flaky",
+  "episode_ids": [
+    "ep_web_ticket_0043"
+  ],
+  "event_ids": [],
+  "evidence_refs": [],
+  "content_hash": "sha256:133fa52ff3f15e4f5f7950784427baa67c5a12a15989b0e2f47cc4e942561292"
+}

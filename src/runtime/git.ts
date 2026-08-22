@@ -1,7 +1,7 @@
 // Best-effort git HEAD resolution for capture surfaces (learning-loop
 // spec §6-§7): the ONE helper both the pass executor's replay-seed stamp
 // (src/loop/pipeline.ts) and the SystemFingerprint's commit fields
-// (src/org/learning/fingerprint.ts) use, so their truthfulness rules cannot
+// (src/org/learning-loop/host/fingerprint.ts) use, so their truthfulness rules cannot
 // drift apart.
 //
 // Truthful means: a commit is reported only when `dir` IS a checkout — git's

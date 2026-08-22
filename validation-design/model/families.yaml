@@ -1650,12 +1650,15 @@ families:
       - tests/hermetic/cf-j11-a-cf-j11-i-cf-j11-rc-cf-j11-s/internal-artifact-incident-journey.test.ts
   - id: CF-J12-S
     title: "Journey matrix: CF-J12-S"
-    meaning: "Protected family contract: | CF-J12-S | capture→episode→candidate→review→publish happy path on temp org-home git | 2 | state | STD |"
+    meaning: "Protected family contract: | CF-J12-S | capture→episode→candidate→review→publish happy path on temp org-home git | 2 | state | STD | <!-- changelog 2026-08-21 #467 phase B: re-homed to the kernel path (B-32, HB-157); the forked spec was removed 2026-08-22 on the owner's sign-off -->"
     structure_ids:
+      - B-32
       - OP-VALIDATION-LIFECYCLE
       - J-12
     owner: bikramgupta
     source_ids:
+      - SOURCE-BOUNDARY-MAP
+      - SOURCE-CONTRACT-B-32-LEARNING-KERNEL-PORTS
       - SOURCE-ROUTING
       - SOURCE-SYSTEM-MAP
       - SOURCE-CONTRACT-JOURNEY-ACCEPTANCE
@@ -1663,12 +1666,12 @@ families:
     status: implementable
     layer: L2
     oracle: state
-    risk: STD
+    risk: "STD — HB-157, kernel path (B-32), 2026-08-21 phase-B revision"
     control_ids:
       - NC-CF-J12-S
-    ticket: HB-017-L2
+    ticket: HB-157
     planned_tests:
-      - tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-s.test.ts
+      - tests/hermetic/cf-c-b32-cf-j12-cf-sm-learn/cf-j12-s.test.ts
   - id: CF-J12-R
     title: "Journey matrix: CF-J12-R"
     meaning: "Protected family contract: | CF-J12-R | agent write to protected surface blocked (tamper gate); candidate placed to resolve → never resolves | 1/2 | refusal | E1 (T-10) |"
@@ -1689,7 +1692,7 @@ families:
       - NC-CF-J12-R
     ticket: HB-017
     planned_tests:
-      - tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-r.test.ts
+      - tests/hermetic/cf-c-b11-cf-j12-r-cf-reg-251/cf-j12-r.test.ts
   - id: CF-J12-R-L2
     title: "Journey matrix: CF-J12-R"
     meaning: "Protected family contract: | CF-J12-R | agent write to protected surface blocked (tamper gate); candidate placed to resolve → never resolves | 1/2 | refusal | E1 (T-10) |"
@@ -1710,16 +1713,19 @@ families:
       - NC-CF-J12-R-L2
     ticket: HB-017-L2
     planned_tests:
-      - tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-r.test.ts
+      - tests/hermetic/cf-c-b11-cf-j12-r-cf-reg-251/cf-j12-r.test.ts
   - id: CF-J12-I
     title: "Journey matrix: CF-J12-I"
-    meaning: "Protected family contract: | CF-J12-I | publisher crash mid-transaction → forward-complete or no-op by approval ID | 2 | state | E1 |"
+    meaning: "Protected family contract: | CF-J12-I | publisher crash mid-transaction → forward-complete or no-op from the kernel journal (consumed plan; never a second approval) | 2 | state | E1 | <!-- changelog 2026-08-21 #467 phase B: re-homed to the kernel path (B-32, HB-157); the forked spec was removed 2026-08-22 on the owner's sign-off -->"
     structure_ids:
+      - B-32
       - OP-VALIDATION-LIFECYCLE
       - J-12
       - J-13
     owner: bikramgupta
     source_ids:
+      - SOURCE-BOUNDARY-MAP
+      - SOURCE-CONTRACT-B-32-LEARNING-KERNEL-PORTS
       - SOURCE-ROUTING
       - SOURCE-SYSTEM-MAP
       - SOURCE-CONTRACT-JOURNEY-ACCEPTANCE
@@ -1727,21 +1733,24 @@ families:
     status: implementable
     layer: L2
     oracle: state
-    risk: E1
+    risk: "E1 — HB-157, kernel path (B-32), 2026-08-21 phase-B revision"
     control_ids:
       - NC-CF-J12-I
-    ticket: HB-017-L2
+    ticket: HB-157
     planned_tests:
-      - tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-i.test.ts
+      - tests/hermetic/cf-c-b32-cf-j12-cf-sm-learn/cf-j12-i.test.ts
   - id: CF-J12-RC
     title: "Journey matrix: CF-J12-RC"
-    meaning: "Protected family contract: | CF-J12-RC | re-run completed transaction no-ops; rejection ledger suppresses re-publish | 2 | state | E1 |"
+    meaning: "Protected family contract: | CF-J12-RC | re-run completed transaction no-ops; rejection ledger suppresses re-publish | 2 | state | E1 | <!-- changelog 2026-08-21 #467 phase B: re-homed to the kernel path (B-32, HB-157); the forked spec was removed 2026-08-22 on the owner's sign-off -->"
     structure_ids:
+      - B-32
       - OP-VALIDATION-LIFECYCLE
       - J-12
       - J-13
     owner: bikramgupta
     source_ids:
+      - SOURCE-BOUNDARY-MAP
+      - SOURCE-CONTRACT-B-32-LEARNING-KERNEL-PORTS
       - SOURCE-ROUTING
       - SOURCE-SYSTEM-MAP
       - SOURCE-CONTRACT-JOURNEY-ACCEPTANCE
@@ -1749,20 +1758,23 @@ families:
     status: implementable
     layer: L2
     oracle: state
-    risk: E1
+    risk: "E1 — HB-157, kernel path (B-32), 2026-08-21 phase-B revision"
     control_ids:
       - NC-CF-J12-RC
-    ticket: HB-017-L2
+    ticket: HB-157
     planned_tests:
-      - tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-rc.test.ts
+      - tests/hermetic/cf-c-b32-cf-j12-cf-sm-learn/cf-j12-rc.test.ts
   - id: CF-J12-A
     title: "Journey matrix: CF-J12-A"
-    meaning: "Protected family contract: | CF-J12-A | states rendered distinctly (candidate/published/authorized/active/validated) on learn/report surfaces | 2 | evid | E3 |"
+    meaning: "Protected family contract: | CF-J12-A | states rendered distinctly (candidate/published/authorized/active/validated) on learn/report surfaces | 2 | evid | E3 | <!-- changelog 2026-08-21 #467 phase B: re-homed to the kernel path (B-32, HB-157); the forked spec was removed 2026-08-22 on the owner's sign-off -->"
     structure_ids:
+      - B-32
       - OP-VALIDATION-LIFECYCLE
       - J-12
     owner: bikramgupta
     source_ids:
+      - SOURCE-BOUNDARY-MAP
+      - SOURCE-CONTRACT-B-32-LEARNING-KERNEL-PORTS
       - SOURCE-ROUTING
       - SOURCE-SYSTEM-MAP
       - SOURCE-CONTRACT-JOURNEY-ACCEPTANCE
@@ -1770,12 +1782,12 @@ families:
     status: implementable
     layer: L2
     oracle: evid
-    risk: E3
+    risk: "E3 — HB-157, kernel path (B-32), 2026-08-21 phase-B revision"
     control_ids:
       - NC-CF-J12-A
-    ticket: HB-017-L2
+    ticket: HB-157
     planned_tests:
-      - tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-a.test.ts
+      - tests/hermetic/cf-c-b32-cf-j12-cf-sm-learn/cf-j12-a.test.ts
   - id: CF-J12-K
     title: "Journey matrix: CF-J12-K"
     meaning: "Protected family contract: | CF-J12-K | the J-12 learning pipeline on the kernel path (B-32): projected episodes ingest as observed evidence with measurements bound to the outcome observation; a candidate citing that evidence is reviewed by an independent principal and bound into a plan; a missing, pending, or denied approval, or an approval bound to different bytes, publishes nothing and writes nothing; an approved `learning_loop_publish` item publishes exactly once into the OKF bundle with one manifest cut whose approval_ref is the kernel idempotency key, a replayed publish is a no-op, the published concept resolves for a future episode and yields one acknowledged exposure set; the kernel writes only under `<state home>/learning-loop/` plus the destination's concept and manifest, with a seeded stray write turning the confinement detector red | 2 | state+refusal | E1 (T-10) |"
@@ -3436,76 +3448,88 @@ families:
     reason: PRUNE-dup:CF-J02-I/RC (ladder transitions are lifecycle ops)
   - id: CF-SM-LEARN-L
     title: "State-machine matrix: CF-SM-LEARN-L"
-    meaning: "Protected family contract: | CF-SM-LEARN-L/I/R/C | learning states candidate→published→authorized→active(+validated orthogonal): every silent-promotion path unrepresentable; publish replay no-op; crash per CF-J12-I | 2 | state | E1 (T-10) |"
+    meaning: "Protected family contract: | CF-SM-LEARN-L/I/R/C | learning states candidate→published→authorized→active(+validated orthogonal): every silent-promotion path unrepresentable; publish replay no-op; crash per CF-J12-I | 2 | state | E1 (T-10) | <!-- changelog 2026-08-21 #467 phase B: re-homed to the kernel path (B-32, HB-157); the forked spec was removed 2026-08-22 on the owner's sign-off -->"
     structure_ids:
+      - B-32
       - SM-LEARN
     owner: bikramgupta
     source_ids:
+      - SOURCE-BOUNDARY-MAP
+      - SOURCE-CONTRACT-B-32-LEARNING-KERNEL-PORTS
       - SOURCE-CONTRACT-B-11-LEARNING-PUBLISHER
     lane: per-commit
     status: implementable
     layer: L2
     oracle: state
-    risk: E1 (T-10)
+    risk: "E1 (T-10) — HB-157, kernel path (B-32), 2026-08-21 phase-B revision"
     control_ids:
       - NC-CF-SM-LEARN-L
-    ticket: HB-017-L2
+    ticket: HB-157
     planned_tests:
-      - tests/hermetic/cf-c-b11-cf-sm-learn-c-cf-sm-learn-i-cf-sm-learn-l-cf-sm-learn-r/cf-sm-learn-l.test.ts
+      - tests/hermetic/cf-c-b32-cf-j12-cf-sm-learn/cf-sm-learn-l.test.ts
   - id: CF-SM-LEARN-I
     title: "State-machine matrix: CF-SM-LEARN-I"
-    meaning: "Protected family contract: | CF-SM-LEARN-L/I/R/C | learning states candidate→published→authorized→active(+validated orthogonal): every silent-promotion path unrepresentable; publish replay no-op; crash per CF-J12-I | 2 | state | E1 (T-10) |"
+    meaning: "Protected family contract: | CF-SM-LEARN-L/I/R/C | learning states candidate→published→authorized→active(+validated orthogonal): every silent-promotion path unrepresentable; publish replay no-op; crash per CF-J12-I | 2 | state | E1 (T-10) | <!-- changelog 2026-08-21 #467 phase B: re-homed to the kernel path (B-32, HB-157); the forked spec was removed 2026-08-22 on the owner's sign-off -->"
     structure_ids:
+      - B-32
       - SM-LEARN
     owner: bikramgupta
     source_ids:
+      - SOURCE-BOUNDARY-MAP
+      - SOURCE-CONTRACT-B-32-LEARNING-KERNEL-PORTS
       - SOURCE-CONTRACT-B-11-LEARNING-PUBLISHER
     lane: per-commit
     status: implementable
     layer: L2
     oracle: state
-    risk: E1 (T-10)
+    risk: "E1 (T-10) — HB-157, kernel path (B-32), 2026-08-21 phase-B revision"
     control_ids:
       - NC-CF-SM-LEARN-I
-    ticket: HB-017-L2
+    ticket: HB-157
     planned_tests:
-      - tests/hermetic/cf-c-b11-cf-sm-learn-c-cf-sm-learn-i-cf-sm-learn-l-cf-sm-learn-r/cf-sm-learn-i.test.ts
+      - tests/hermetic/cf-c-b32-cf-j12-cf-sm-learn/cf-sm-learn-i.test.ts
   - id: CF-SM-LEARN-R
     title: "State-machine matrix: CF-SM-LEARN-R"
-    meaning: "Protected family contract: | CF-SM-LEARN-L/I/R/C | learning states candidate→published→authorized→active(+validated orthogonal): every silent-promotion path unrepresentable; publish replay no-op; crash per CF-J12-I | 2 | state | E1 (T-10) |"
+    meaning: "Protected family contract: | CF-SM-LEARN-L/I/R/C | learning states candidate→published→authorized→active(+validated orthogonal): every silent-promotion path unrepresentable; publish replay no-op; crash per CF-J12-I | 2 | state | E1 (T-10) | <!-- changelog 2026-08-21 #467 phase B: re-homed to the kernel path (B-32, HB-157); the forked spec was removed 2026-08-22 on the owner's sign-off -->"
     structure_ids:
+      - B-32
       - SM-LEARN
     owner: bikramgupta
     source_ids:
+      - SOURCE-BOUNDARY-MAP
+      - SOURCE-CONTRACT-B-32-LEARNING-KERNEL-PORTS
       - SOURCE-CONTRACT-B-11-LEARNING-PUBLISHER
     lane: per-commit
     status: implementable
     layer: L2
     oracle: state
-    risk: E1 (T-10)
+    risk: "E1 (T-10) — HB-157, kernel path (B-32), 2026-08-21 phase-B revision"
     control_ids:
       - NC-CF-SM-LEARN-R
-    ticket: HB-017-L2
+    ticket: HB-157
     planned_tests:
-      - tests/hermetic/cf-c-b11-cf-sm-learn-c-cf-sm-learn-i-cf-sm-learn-l-cf-sm-learn-r/cf-sm-learn-r.test.ts
+      - tests/hermetic/cf-c-b32-cf-j12-cf-sm-learn/cf-sm-learn-r.test.ts
   - id: CF-SM-LEARN-C
     title: "State-machine matrix: CF-SM-LEARN-C"
-    meaning: "Protected family contract: | CF-SM-LEARN-L/I/R/C | learning states candidate→published→authorized→active(+validated orthogonal): every silent-promotion path unrepresentable; publish replay no-op; crash per CF-J12-I | 2 | state | E1 (T-10) |"
+    meaning: "Protected family contract: | CF-SM-LEARN-L/I/R/C | learning states candidate→published→authorized→active(+validated orthogonal): every silent-promotion path unrepresentable; publish replay no-op; crash per CF-J12-I | 2 | state | E1 (T-10) | <!-- changelog 2026-08-21 #467 phase B: re-homed to the kernel path (B-32, HB-157); the forked spec was removed 2026-08-22 on the owner's sign-off -->"
     structure_ids:
+      - B-32
       - SM-LEARN
     owner: bikramgupta
     source_ids:
+      - SOURCE-BOUNDARY-MAP
+      - SOURCE-CONTRACT-B-32-LEARNING-KERNEL-PORTS
       - SOURCE-CONTRACT-B-11-LEARNING-PUBLISHER
     lane: per-commit
     status: implementable
     layer: L2
     oracle: state
-    risk: E1 (T-10)
+    risk: "E1 (T-10) — HB-157, kernel path (B-32), 2026-08-21 phase-B revision"
     control_ids:
       - NC-CF-SM-LEARN-C
-    ticket: HB-017-L2
+    ticket: HB-157
     planned_tests:
-      - tests/hermetic/cf-c-b11-cf-sm-learn-c-cf-sm-learn-i-cf-sm-learn-l-cf-sm-learn-r/cf-sm-learn-c.test.ts
+      - tests/hermetic/cf-c-b32-cf-j12-cf-sm-learn/cf-sm-learn-c.test.ts
   - id: CF-SM-EVENT-L
     title: "State-machine matrix: CF-SM-EVENT-L"
     meaning: "Protected family contract: | CF-SM-EVENT-L/I/R/C | event pending→per-role-marked→retired: retire-before-all-marks illegal; refire-on-marked illegal; crash between mark and retire; **partial-file legality ratified 2026-08-12 F-PT-006: a partial file is legal input, retained and re-read; 2026-08-16 identity clarification strips filename+producer-id and preserves legacy filename/id-inclusive bare+per-role suppression** | 2 | state | STD |"
@@ -6367,7 +6391,7 @@ families:
       - tests/live/cf-b31-l3/planning-source-modality.test.ts
   - id: CF-B32
     title: "Boundary matrix: CF-B32"
-    meaning: "Protected family contract: | CF-B32 | Cormidia learning adapters ↔ governed-learning-loop kernel failure modes scripted on real temp homes: crash between the OKF destination's manifest cut and its receipt forward-completes with no second cut; an approved plan whose base moved, or a target holding different bytes, is a typed base_mismatch with no write; a tampered receipt under a reused key is a typed receipt_mismatch, never replayed as success; an active canary on the destination root is a typed busy refusal before any write; a corrupt projected episode closes its page as evidence health, never an empty success, and a missing state home probes unsupported; a foreign approval item, an unknown id, a different binding digest, and malformed evidence are closed invalid decisions, while pending and denied items project to exactly those decisions; version/schema skew and coexistence dual-writing (F-PT-041) are declared and remain uncovered until phase B names their seams | 2 | refusal+state+evid | E1 (T-10) |"
+    meaning: "Protected family contract: | CF-B32 | Cormidia learning adapters ↔ governed-learning-loop kernel failure modes scripted on real temp homes: crash between the OKF destination's manifest cut and its receipt forward-completes with no second cut; an approved plan whose base moved, or a target holding different bytes, is a typed base_mismatch with no write; a tampered receipt under a reused key is a typed receipt_mismatch, never replayed as success; an active canary on the destination root is a typed busy refusal before any write; a corrupt projected episode closes its page as evidence health, never an empty success, and a missing state home probes unsupported; a foreign approval item, an unknown id, a different binding digest, and malformed evidence are closed invalid decisions, while pending and denied items project to exactly those decisions; version/schema skew is guarded by the adapters' parse refusals (CF-C-B32 §1) and not scripted here; coexistence dual-writing (F-PT-041) is resolved by the phase-B cutover rule — exactly one writer per root, switched at cutover — and unrepresentable once the forked publisher is removed | 2 | refusal+state+evid | E1 (T-10) |"
     structure_ids:
       - B-32
     owner: bikramgupta
@@ -6376,7 +6400,7 @@ families:
     lane: per-commit
     status: implementable
     covers_failure_modes:
-      - "B-32#**Failure modes:** vendored kernel version or record schema skew (tarball drift, `schemaVersion` mismatch); a kernel write reaching a protected org-home or app surface other than the destination's concept file and manifest; a crash between the destination's manifest cut and its receipt; an approved plan whose destination base moved; a reused idempotency key carrying different effect bytes; an active canary on the destination root at apply time; a corrupt or mutated projected episode under an import; an approval item that is not a learning-loop publish, is unknown, or binds a different digest; a replay attestation that does not echo the request or the registration; the forked engine and the kernel path both writing one destination root during coexistence (F-PT-041)."
+      - "B-32#**Failure modes:** vendored kernel version or record schema skew (tarball drift, `schemaVersion` mismatch); a kernel write reaching a protected org-home or app surface other than the destination's concept file and manifest; a crash between the destination's manifest cut and its receipt; an approved plan whose destination base moved; a reused idempotency key carrying different effect bytes; an active canary on the destination root at apply time; a corrupt or mutated projected episode under an import; an approval item that is not a learning-loop publish, is unknown, or binds a different digest; a replay attestation that does not echo the request or the registration; a second writer on a destination root after the cutover (F-PT-041, resolved 2026-08-21 phase B: exactly one writer per root, switched at cutover; unrepresentable once the forked publisher is removed)."
     layer: L2
     oracle: refusal+state+evid
     risk: E1 (T-10; HB-156; registered by the 2026-08-21 #467 phase-A revision)
@@ -6385,6 +6409,29 @@ families:
     ticket: HB-156-L2
     planned_tests:
       - tests/hermetic/cf-b32/learning-kernel-failure-modes.test.ts
+  - id: CF-B32-PARITY
+    title: "Boundary matrix: CF-B32-PARITY"
+    meaning: "Protected family contract: | CF-B32-PARITY | byte/state parity of the kernel path against the forked engine's captured artifacts under the recorded compatibility policy (research record §3a exact preservation, §3b compatibility readers, §8 evidence): the same drafts, verdicts, approvals, episodes, and clock replayed through the kernel yield byte-identical activated concepts on the org and app roots; manifests equal modulo the ruled `approval_ref` delta (kernel idempotency key) and the version note; byte-identical proposal drafts, rejection ledger, resolved record, canary assignment, and learning events; the captured active artifacts resolve unchanged through the cutover resolver; the legacy readers parse the captured journals, interventions, and bindings; the kernel lists exactly the captured interventions (the skill draft inactive with no claim); a seeded byte change trips ParityViolation | 2 | state+evid | E1 (T-10) |"
+    structure_ids:
+      - B-32
+      - B-11
+    owner: bikramgupta
+    source_ids:
+      - SOURCE-BOUNDARY-MAP
+      - SOURCE-CONTRACT-B-32-LEARNING-KERNEL-PORTS
+      - SOURCE-RESEARCH-LEARNING-LOOP-MIGRATION
+    lane: per-commit
+    status: implementable
+    covers_failure_modes:
+      - "B-32#**Failure modes:** vendored kernel version or record schema skew (tarball drift, `schemaVersion` mismatch); a kernel write reaching a protected org-home or app surface other than the destination's concept file and manifest; a crash between the destination's manifest cut and its receipt; an approved plan whose destination base moved; a reused idempotency key carrying different effect bytes; an active canary on the destination root at apply time; a corrupt or mutated projected episode under an import; an approval item that is not a learning-loop publish, is unknown, or binds a different digest; a replay attestation that does not echo the request or the registration; a second writer on a destination root after the cutover (F-PT-041, resolved 2026-08-21 phase B: exactly one writer per root, switched at cutover; unrepresentable once the forked publisher is removed)."
+    layer: L2
+    oracle: state+evid
+    risk: E1 (T-10; HB-157; registered by the 2026-08-21 #467 phase-B revision)
+    control_ids:
+      - NC-CF-B32-PARITY
+    ticket: HB-157
+    planned_tests:
+      - tests/hermetic/cf-b32/learning-kernel-parity.test.ts
   - id: CF-C-CORE
     title: "Contract matrix: CF-C-CORE"
     meaning: "Protected family contract: | CF-C-CORE | CORMIDIA-C-CORE-001 all clauses: TurnRequest validity/refusals, envelope guarantees (**terminal-status enum clause ratified 2026-08-12 F-PT-017: `interrupted` with a REQUIRED machine-readable reason, asserted across every adapter, plus the `timed_out`→`interrupted`+`time_limit` migration case**) [spec: `tests/unit/cf-c-core/terminal-status-vocabulary.test.ts` — HB-P6, landed red-then-green 2026-08-12], usage-as-provided-or-unknown, typed errors, never-auto-retry, budget observation at capability-matrix points, settlement | 1/2 | state+refusal | E2 (T-11) |"
@@ -6822,7 +6869,7 @@ families:
       - tests/unit/cf-b10/cf-c-b10/cf-b10-brand-rename.test.ts
   - id: CF-C-B11
     title: "Contract matrix: CF-C-B11"
-    meaning: "Protected family contract: | CF-C-B11 | clause-complete contract family; live/ops dup: —; blocked remainder: — | 1/2 | contract | E1 (T-10) |"
+    meaning: "Protected family contract: | CF-C-B11 | clause-complete contract family; live/ops dup: —; blocked remainder: — | 1/2 | contract | E1 (T-10) | <!-- changelog 2026-08-22 #467 phase B: §3/§4 superseded by CONTRACT-B-32 §3/§4; the L1 leg pins the retained §1 allowlist and §2 non-resolvability (cf-j12-r); the forked specs were removed on the owner's sign-off -->"
     structure_ids:
       - B-11
       - CONTRACT-B-11
@@ -6839,18 +6886,10 @@ families:
       - NC-CF-C-B11
     ticket: HB-017
     planned_tests:
-      - tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-a.test.ts
-      - tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-i.test.ts
-      - tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-r.test.ts
-      - tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-rc.test.ts
-      - tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-s.test.ts
-      - tests/hermetic/cf-c-b11-cf-sm-learn-c-cf-sm-learn-i-cf-sm-learn-l-cf-sm-learn-r/cf-sm-learn-c.test.ts
-      - tests/hermetic/cf-c-b11-cf-sm-learn-c-cf-sm-learn-i-cf-sm-learn-l-cf-sm-learn-r/cf-sm-learn-i.test.ts
-      - tests/hermetic/cf-c-b11-cf-sm-learn-c-cf-sm-learn-i-cf-sm-learn-l-cf-sm-learn-r/cf-sm-learn-l.test.ts
-      - tests/hermetic/cf-c-b11-cf-sm-learn-c-cf-sm-learn-i-cf-sm-learn-l-cf-sm-learn-r/cf-sm-learn-r.test.ts
+      - tests/hermetic/cf-c-b11-cf-j12-r-cf-reg-251/cf-j12-r.test.ts
   - id: CF-C-B11-L2
     title: "Contract matrix: CF-C-B11"
-    meaning: "Protected family contract: | CF-C-B11 | clause-complete contract family; live/ops dup: —; blocked remainder: — | 1/2 | contract | E1 (T-10) |"
+    meaning: "Protected family contract: | CF-C-B11 | clause-complete contract family; live/ops dup: —; blocked remainder: — | 1/2 | contract | E1 (T-10) | <!-- changelog 2026-08-22 #467 phase B: §3/§4 superseded by CONTRACT-B-32 §3/§4; the L2 leg pins the retained §2 state distinctness and §5 activation-needs-its-own-approval on the kernel path (cf-j12-s, cf-sm-learn-i, cf-sm-learn-l); the forked specs were removed on the owner's sign-off -->"
     structure_ids:
       - B-11
       - CONTRACT-B-11
@@ -6867,15 +6906,9 @@ families:
       - NC-CF-C-B11-L2
     ticket: HB-017-L2
     planned_tests:
-      - tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-a.test.ts
-      - tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-i.test.ts
-      - tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-r.test.ts
-      - tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-rc.test.ts
-      - tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-s.test.ts
-      - tests/hermetic/cf-c-b11-cf-sm-learn-c-cf-sm-learn-i-cf-sm-learn-l-cf-sm-learn-r/cf-sm-learn-c.test.ts
-      - tests/hermetic/cf-c-b11-cf-sm-learn-c-cf-sm-learn-i-cf-sm-learn-l-cf-sm-learn-r/cf-sm-learn-i.test.ts
-      - tests/hermetic/cf-c-b11-cf-sm-learn-c-cf-sm-learn-i-cf-sm-learn-l-cf-sm-learn-r/cf-sm-learn-l.test.ts
-      - tests/hermetic/cf-c-b11-cf-sm-learn-c-cf-sm-learn-i-cf-sm-learn-l-cf-sm-learn-r/cf-sm-learn-r.test.ts
+      - tests/hermetic/cf-c-b32-cf-j12-cf-sm-learn/cf-j12-s.test.ts
+      - tests/hermetic/cf-c-b32-cf-j12-cf-sm-learn/cf-sm-learn-i.test.ts
+      - tests/hermetic/cf-c-b32-cf-j12-cf-sm-learn/cf-sm-learn-l.test.ts
   - id: CF-C-B12
     title: "Contract matrix: CF-C-B12"
     meaning: "Protected family contract: | CF-C-B12 | clause-complete contract family; live/ops dup: —; blocked remainder: — | 2 | contract | E3/FLOOR (T-4 slice) |"
@@ -9834,7 +9867,7 @@ families:
       - tests/unit/cf-inv-009/cf-reg-203-g/default-branch-source.test.ts
   - id: CF-REG-251
     title: "Defect-sourced regression families: CF-REG-251"
-    meaning: "Protected family contract: | CF-REG-251 | #251 — the CF-J12-I journal reader derived a filename from the raw random approval ID while the publisher strips a trailing base64url `-`, making full-suite reliability depend on a roughly 1-in-64 draw [owning structure: CF-J12-I · CF-INV-013 · CF-HARNESS-CI; control point: T-9; spec: `tests/hermetic/cf-j12/cf-j12-i.test.ts`; fixed trailing-hyphen approval ID, publisher/journal round trip, and seeded raw-path `ENOENT` negative control] | 2 | state+det | REG |"
+    meaning: "Protected family contract: | CF-REG-251 | #251 — the CF-J12-I journal reader derived a filename from the raw random approval ID while the publisher strips a trailing base64url `-`, making full-suite reliability depend on a roughly 1-in-64 draw [owning structure: CF-J12-I · CF-INV-013 · CF-HARNESS-CI; control point: T-9; spec: `tests/hermetic/cf-c-b11-cf-j12-r-cf-reg-251/cf-reg-251.test.ts`; fixed trailing-hyphen approval ID, legacy journal reader round trip through `sanitizeIdSegment`, and seeded raw-path `ENOENT` negative control] <!-- changelog 2026-08-22 #467 phase B: the forked publisher retired; the regression now pins the legacy journal reader (src/org/learning-loop/legacy.ts) --> | 2 | state+det | REG |"
     structure_ids:
       - OP-REGRESSION
     owner: bikramgupta
@@ -9849,7 +9882,7 @@ families:
       - NC-CF-REG-251
     ticket: HB-139-L2
     planned_tests:
-      - tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-i.test.ts
+      - tests/hermetic/cf-c-b11-cf-j12-r-cf-reg-251/cf-reg-251.test.ts
   - id: CF-REG-268
     title: "Defect-sourced regression families: CF-REG-268"
     meaning: "Protected family contract: | CF-REG-268 | #268 — real-GitHub conformance clause B01-CF-13 deliberately consumed its branch-delete effect, but the live surface retained that branch as outstanding cleanup and converted the expected terminal missing-ref response into a false campaign failure [owning structure: CF-B01-* · CF-HARNESS-CI; control point: T-7; spec: `tests/unit/cf-reg-268/github-live-cleanup-bookkeeping.test.ts`; successful deletion consumes tracked cleanup state, with a seeded bypass reproducing the stale second-delete failure] | 1 | state+det | REG |"

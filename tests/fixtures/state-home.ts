@@ -37,7 +37,7 @@ export const STATE_HOME_DIRS: readonly string[] = [
   "state/invocation-journal", // src/runtime/invocation-ledger.ts
   "scheduler/evidence", // src/org/scheduler/evidence.ts
   "planning", // src/org/roadmap-delivery/ snapshots/current roadmap/validation/batches/claims/evidence
-  "learning", // src/org/learning/* state-home stores
+  "learning", // src/org/learning-loop/host/* state-home stores
   "tasks", // src/org/parent-task.ts
   "jobs", // src/jobs/journal.ts job journals + config snapshots (B-23)
 ];

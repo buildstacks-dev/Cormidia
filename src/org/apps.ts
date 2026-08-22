@@ -241,7 +241,7 @@ function parseApp(
 ): AppEntry {
   const err = (msg: string) => new Error(`${path}: app "${name}": ${msg}`);
   if (name === "learning-replay") {
-    // Reserved runlog namespace (learning-loop M5, src/org/learning/capture.ts):
+    // Reserved runlog namespace (learning-loop M5, src/org/learning-loop/host/capture.ts):
     // an app under this name would have every run silently excluded from
     // learning capture and episode projection — refuse at registration, not
     // by degradation at projection time.

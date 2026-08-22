@@ -311,8 +311,14 @@ boundary. Failure modes extended accordingly; the honest-fake verdict is unchang
 - **Layer:** 1/2.
 
 ### B-11 — Learning capture (state home) ↔ governed substrate (org home git) `[doc]`
-- **Boundary test:** capture proceeds while the substrate is untouched; publisher fails
-  while capture is intact. PASS.
+- **Phase B (2026-08-21, #467):** the publisher seam at this line is the kernel's OKF
+  destination (B-32 §4) driven by the kernel's publish journal; the forked publisher and its
+  approval-keyed journal are retired (compatibility readers only). The boundary keeps capture
+  (episodes, cursor), the `learning-surface-tamper` gate, candidate non-resolvability, and the
+  state-distinctness clause — now the kernel's four-dimensional InterventionState. Contract
+  §3/§4 superseded by B-32 §3/§4; §1, §2, §5 retained.
+- **Boundary test:** capture proceeds while the substrate is untouched; the kernel's
+  destination fails while capture is intact. PASS.
 - **Failure modes:** publisher crash mid-transaction (journaled); candidate placed to
   masquerade as active; tamper on protected surfaces; capture cursor drift;
   **authorized / published / active / validated remaining separate facts even when
@@ -914,7 +920,7 @@ boundary. Failure modes extended accordingly; the honest-fake verdict is unchang
 - **Layer:** 1/2 dominant, plus a per-harness L3 modality-proof leg feeding the
   capability profile.
 
-### B-32 — Cormidia learning adapters ↔ governed-learning-loop kernel `[stated: #467 phase A, 2026-08-21]`
+### B-32 — Cormidia learning adapters ↔ governed-learning-loop kernel `[stated: #467 phase A + phase B, 2026-08-21]`
 - **Why it is a boundary:** the learning kernel now lives outside the repository
   (`@cormidia/learning-loop`, `github.com/cormidia/governed-learning-loop`, consumed as an
   exact vendored tarball per its Decision 0029 R7) and owns candidate, review, plan, journal,
@@ -924,13 +930,20 @@ boundary. Failure modes extended accordingly; the honest-fake verdict is unchang
   manifest as a destination, loop replay as an executor. Ownership of state and the failure
   domain both change at this line — the kernel can refuse, crash, or drift in version
   independently of the approvals store and the org-home git substrate (B-11/B-15), and neither
-  side reads the other's records except through the adapter. The forked engine under
-  `src/org/learning/` remains the operator path until phase B; in phase A the kernel path is
-  reachable only through `createCormidiaLearningLoop` (`src/org/learning-loop/loop.ts`).
-- **Boundary test:** the kernel can be absent or refusing while the forked engine, approvals,
-  and runlogs stay intact; Cormidia's state home can be missing or corrupt while a composed
+  side reads the other's records except through the adapter. Since phase B (2026-08-21) the
+  kernel is Cormidia's only learning engine: `composeLearningLoop` / `learningLoopFor`
+  (`src/org/learning-loop/compose.ts`, `registry.ts`) serve the `learn *` CLI, the scheduled
+  distiller/reviewer turns, and context assembly; the forked publisher, experiment runner,
+  bindings, and efficacy decisions were removed on 2026-08-22 after the owner's sign-off — no
+  forked engine remains. Cormidia keeps capture, episodes, events, OKF rendering and manifest
+  cuts, policy, canary scheduling, replay execution, the stores, and the CLI under
+  `src/org/learning-loop/host/`.
+- **Boundary test:** the kernel can be absent or refusing while capture, approvals, and
+  runlogs stay intact (the learn surfaces refuse typed, never fall back to a fork); Cormidia's state home can be missing or corrupt while a composed
   kernel keeps its own store consistent. PASS, both directions.
-- **Journeys / tier:** J-12 on the kernel path (CF-J12-K); T-10 adversarial depth.
+- **Journeys / tier:** J-12 on the kernel path (CF-J12-K; since phase B also CF-J12-S/I/RC/A and
+  CF-SM-LEARN-L/I/R/C, HB-157) and parity against the captured fork oracle (CF-B32-PARITY);
+  T-10 adversarial depth.
 - **Failure modes:** vendored kernel version or record schema skew (tarball drift,
   `schemaVersion` mismatch); a kernel write reaching a protected org-home or app surface other
   than the destination's concept file and manifest; a crash between the destination's manifest
@@ -938,17 +951,22 @@ boundary. Failure modes extended accordingly; the honest-fake verdict is unchang
   carrying different effect bytes; an active canary on the destination root at apply time; a
   corrupt or mutated projected episode under an import; an approval item that is not a
   learning-loop publish, is unknown, or binds a different digest; a replay attestation that
-  does not echo the request or the registration; the forked engine and the kernel path both
-  writing one destination root during coexistence (F-PT-041).
+  does not echo the request or the registration; a second writer on a destination root after
+  the cutover (F-PT-041, resolved 2026-08-21 phase B: exactly one writer per root, switched at
+  cutover; unrepresentable once the forked publisher is removed).
 - **Honest fake:** YES — the kernel's own conformance suites (`/testing`, part of its public
   API) run unchanged against the Cormidia adapters over temp org/app/state homes, and the
   kernel is exercised through its real file store; the replay runner is a scripted host seam;
   no provider is involved. Crash-mid-step is scripted by deleting the destination receipt
   between the manifest cut and the retry.
-- **Unproven real:** the production replay runner (the fork's worktree-isolated loop replay)
-  and every non-OKF destination (proposals, GitHub tickets, evaluation gates) bind in phase B;
-  parity of kernel-published bytes against a captured live org home is phase-B evidence, not
-  claimable here.
+- **Phase B evidence (2026-08-21):** the production replay runner binds through
+  `createLoopReplayRunner`; the proposal and GitHub-ticket destinations bind (tickets through
+  the scripted `GhOps` seam); parity of kernel-published bytes against the captured fork oracle
+  is CF-B32-PARITY (`tests/fixtures/learning-parity/`, fixed clock, 37 digests).
+- **Unproven real:** a live GitHub ticket publication (B-01's L3 lane, not this boundary's);
+  the kernel's `report()` folding of interventions (`report.tier_not_implemented` — the host
+  index stands in, package follow-up); the package's ancestor-evidence rule (scoped projections
+  stand in).
 - **Layer:** 1/2.
 - **Contract:** `contracts/B-32-learning-kernel-ports.md` (CORMIDIA-C-B32-001…005).
 

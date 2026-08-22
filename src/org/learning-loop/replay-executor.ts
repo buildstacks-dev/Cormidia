@@ -4,7 +4,7 @@
 // attempt attests exactly the request it was given plus this executor's exact
 // registration; this adapter builds that attestation faithfully and delegates
 // the actual isolated run to a host runner seam. The production runner —
-// Cormidia's worktree-isolated loop replay (src/org/learning/replay.ts) —
+// Cormidia's worktree-isolated loop replay (src/org/learning-loop/host/replay.ts) —
 // binds here in migration phase B; phase A ships the seam and its conformance.
 
 import { defineReplayExecutor, sha256HexOfCanonicalJson } from "@cormidia/learning-loop";

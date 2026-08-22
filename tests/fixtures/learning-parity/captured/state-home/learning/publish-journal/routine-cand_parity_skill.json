@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "journal_id": "routine-cand_parity_skill",
+  "candidate_id": "cand_parity_skill",
+  "candidate_hash": "sha256:e245267529924cfcf0b9cccf83d90efd908c097b504ed9a98e7ec25b4d86ab3b",
+  "destination": "skill_draft",
+  "tier": "T0",
+  "scope": "roles/builder",
+  "approval_ref": null,
+  "claim": "authorized",
+  "waivers": [],
+  "artifact": {
+    "kind": "commit",
+    "bytes": "# Verify the default branch\n\nResolve it; never guess.\n",
+    "proposalPath": "<org-home>/learning/proposals/skills/cand_parity_skill.md"
+  },
+  "artifact_ref": "<org-home>/learning/proposals/skills/cand_parity_skill.md",
+  "intervention_id": "int_parity_skill",
+  "done_at": "2026-08-21T12:03:00.000Z"
+}

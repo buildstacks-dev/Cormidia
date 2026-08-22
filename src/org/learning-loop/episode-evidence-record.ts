@@ -1,5 +1,5 @@
 // The versioned read side for projected episode records consumed as kernel
-// evidence. `src/org/learning/episode.ts` writes `learning/episodes/*.json`
+// evidence. `src/org/learning-loop/host/episode.ts` writes `learning/episodes/*.json`
 // and reads them back through a bare cast (the blind-cast seam class of
 // #407); evidence crossing into the kernel must instead be parsed from
 // `unknown` (AGENTS.md: parse, don't cast), so this module validates exactly

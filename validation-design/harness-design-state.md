@@ -69,6 +69,58 @@ and cutover re-enter this skill if they move B-11's shape.
 `product.revision` re-bound per the F-PT-040 interim protocol (post-merge design-only re-bind
 owed). Packaging finding F-PT-042 recorded beside F-PT-041.
 
+## Harness revision — learning kernel cutover (2026-08-21, Cormidia #467 phase B)
+
+Diff-scoped, steady-state re-entry (`validation-harness-design`, `harness-revision` mode, the
+pinned 0.4.16 skill), stacked on the phase-A revision above. Phase B cuts Cormidia's learning
+source of truth over to the kernel: candidates, reviews, publication plans, authority lanes,
+publish journal, interventions, resolution receipts, exposure, and experiments are kernel
+records; the `learn *` CLI, the scheduled distiller/reviewer turns, and context assembly run
+through `composeLearningLoop`. **Clause-vs-shape ruling:** B-11's publisher seam moves its state
+owner — the forked publisher's approval-keyed journal under the state home is replaced by the
+kernel's plan-keyed journal — so this is a **shape** change on B-11, not a clause edit: B-11
+stays a boundary (capture ↔ org-home git substrate; the tamper gate, cursor, candidate
+non-resolvability, and the state-distinctness clause persist), its contract §3/§4 are
+superseded by CONTRACT-B-32 §3/§4, and §1/§2/§5 are retained. Sourcing channel 4 (substrate
+drift) re-checked: the kernel path writes the same protected paths through the OKF destination
+(`learning-surface-tamper` unchanged), the learning-path CF-INV-001 seed is unchanged (a
+candidate is inert; only an approved `learning_loop_publish` item or a routine lane restricted to
+proposal-class T0/T1 authorizes a plan), and the new state under `<state>/learning-loop/host/`
+(candidate index, experiment audit) and `<state>/learning-loop/resolutions/` (sidecars) is
+lookup/audit only — the kernel records are the facts.
+
+**Human stop recorded.** This session was non-interactive; the revision is `PROPOSED`-until-merge
+on the phase-A precedent: the owner's merge of the phase-B PR ratifies it. The deletion of the
+forked engine was a separate commit gated on the owner's explicit sign-off, given and landed on
+2026-08-22 (`src/org/learning/` removed; host-owned modules relocated to
+`src/org/learning-loop/host/`; the forked J-12/SM-LEARN specs removed).
+
+**Registered.** Family CF-B32-PARITY (L2, state+evid; structures B-32 + B-11; byte/state parity
+against the captured fork oracle under the research record's §3a/§3b policy) with control
+NC-CF-B32-PARITY. Families CF-J12-S/I/RC/A and CF-SM-LEARN-L/I/R/C re-homed from HB-017-L2 to
+the new ticket HB-157 (L2, landed) with the kernel-path specs under
+`tests/hermetic/cf-c-b32-cf-j12-cf-sm-learn/` as their planned tests; the forked specs stay
+listed as second planned tests until the deletion commit removes them (the transitional model
+names every spec that exists). HB-017-L2 keeps CF-C-B11-L2 and CF-J12-R-L2; HB-017 keeps CF-C-B11
+and CF-J12-R (the refusal leg is engine-independent). B-32's coexistence failure mode is
+re-worded to the post-cutover rule; CF-B32 and CF-B32-PARITY cite it. Source
+SOURCE-RESEARCH-LEARNING-LOOP-MIGRATION registered. No invariant, LLM site, tier, or lane
+changes; nothing loosened. Done at the deletion re-bind (2026-08-22): CF-C-B11 / CF-C-B11-L2
+planned tests moved to the retained-clause specs (`cf-j12-r` for §1/§2 refusal; kernel-path
+`cf-sm-learn-l`, `cf-sm-learn-i`, `cf-j12-s` for §2/§5), CF-REG-251 re-pinned on the legacy
+journal reader (`cf-reg-251.test.ts`), the forked planned tests left the model, and the B-11/B-32
+wording records the removal.
+
+**F-PT-041 resolved (PROPOSED-until-merge).** The recommended answer is applied: exactly one
+writer per destination root at any time, switched at cutover; the kernel path is the only writer
+from the cutover commit on, the fork's journals are read by compatibility readers only, and
+dual-writing is unrepresentable once the forked publisher is removed. No test encodes a state
+that cannot exist; the ruling is recorded on B-32 and in the research record §9.
+
+**Machine state.** Eight-file model recompiled through the public 0.4.16 compiler;
+`product.revision` re-bound per the F-PT-040 interim protocol to the phase-B doc commit
+(post-merge design-only re-bind owed, as for phase A).
+
 ## Harness revision — governed planning-source scope (2026-08-12, F-PT-039 / #386)
 
 Diff-scoped revision resolving F-PT-039: `docs/PURPOSE.md` non-negotiable 2 governs
@@ -738,7 +790,16 @@ process-identity probe.
 - F-PT-032 (**RESOLVED-ratified 2026-08-08**; raised the same day during the HB-120…130 wave): **do B-28 §1's four plant categories apply to a JOB scenario?** They are plan-axis instrumentation and a job has no plan arm, so requiring them of S-ACC-3 demanded instrumentation for a measurement that never happens — and because **J-2 is scored against the sealed key**, an unextractable key left the highest-value job axis permanently `ungraded`. **Owner decision:** §2 is scoped to app scenarios; job scenarios carry their own four (preserved input conflict · undiscoverable answer · mechanically-checkable deliverable constraint · tangent), both lists complete-or-refused, unmapped lead-ins still refused and named. Not a loosening — an inapplicable requirement of cardinality four was replaced by an applicable one of the same cardinality and semantics. **S-ACC-3 was not edited**; it already satisfies the job list. Recorded as a second ratification block at `acceptance/rubric.md` §9, per that file's own never-edit-§8 rule.
 - F-PT-020 (RESOLVED-ratified 2026-08-03, PURPOSE v2.15 §2; **implemented** — mirror corrected 2026-08-10, was stale "open"): an undecided approval expires. CF-SM-APPR gained the terminal, non-blocking `expired` state (24h default TTL, policy-resolvable); on expiry the raising turn's artifacts/worktree are preserved, its claim released without consuming a failure claim, and `app verify` counts only approvals whose raising turn is still live. Encoded in the CF-SM-APPR family text and pinned by `tests/hermetic/cf-reg-205/cf-reg-205-expiry.test.ts`. F-PT-008 is the distinct post-decision grant-expiry question and was later resolved on 2026-08-12: reopen the original item under its original id by appending, never editing, the decision history.
 
-- F-PT-041 (**OPEN, minted 2026-08-21**; raised from Cormidia #467 phase A, B-32):
+- F-PT-041 (**RESOLVED 2026-08-21 by the phase-B cutover rule, PROPOSED-until-merge**; minted
+  2026-08-21, raised from Cormidia #467 phase A, B-32). **Decision applied:** exactly one writer
+  per destination root at any time, switched at cutover — the kernel's OKF destination is the
+  only writer of `learning/bundle/**` and `learning/manifest.yaml` from the phase-B cutover commit;
+  the forked publisher is reachable from no operator surface and is removed by the sign-off-gated
+  deletion commit; forked journals/interventions/bindings are compatibility-read only; in-flight
+  forked approvals are reauthorized through the kernel, never migrated. Not a loosening: the
+  second option (kernel honoring the fork's canary/journal as a second reader) was a strictly
+  weaker guarantee with a permanent dual-write surface. Recorded on B-32 (failure-mode wording),
+  CONTRACT-B-32 boundary note, and the research record §9. Original finding text follows:
   **one writer per learning destination root during the fork/kernel coexistence window.**
   Phase A lands the kernel path beside the forked engine; both can cut a manifest version
   and write `learning/bundle/**` on the same root (the kernel through the OKF destination,

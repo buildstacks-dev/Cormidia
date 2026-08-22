@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "intervention_id": "int_parity_app",
+  "candidate_ref": "cand_parity_app",
+  "destination": "okf_concept",
+  "reviewed_content_hash": "sha256:7f290294bfb4905dc31c1442b3c30b53bef723ee8d5f849184b54e9cc6afa568",
+  "approval_ref": "parity-approval-02",
+  "publish": {
+    "kind": "bundle_version",
+    "ref": "app@2026.08.21-1",
+    "commit": null,
+    "published_at": "2026-08-21T12:02:00.000Z"
+  },
+  "activation": {
+    "activated_at": "2026-08-21T12:02:00.000Z",
+    "claim": "authorized"
+  },
+  "affected_episodes": {
+    "query": "bundle_versions.app >= 2026.08.21-1"
+  },
+  "experiment_ref": null,
+  "outcome_ref": null,
+  "rollback": null,
+  "status": "active"
+}

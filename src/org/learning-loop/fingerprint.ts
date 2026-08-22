@@ -1,4 +1,4 @@
-// Cormidia SystemFingerprint (src/org/learning/fingerprint.ts, spec §6) onto
+// Cormidia SystemFingerprint (src/org/learning-loop/host/fingerprint.ts, spec §6) onto
 // the kernel's content-addressed fingerprint (kernel contract §Fingerprint and
 // experiment). Each Cormidia section becomes one named component whose digest
 // is the canonical JSON of that section, so a drift in any section changes
@@ -12,7 +12,7 @@ import {
   toJsonValue,
 } from "@cormidia/learning-loop";
 import type { FingerprintComponent, SystemFingerprint as KernelFingerprint } from "@cormidia/learning-loop";
-import type { SystemFingerprint } from "../learning/fingerprint.js";
+import type { SystemFingerprint } from "./host/fingerprint.js";
 
 function component(name: string, section: unknown, version?: string | null): FingerprintComponent {
   const digest = sha256HexOfCanonicalJson(toJsonValue(section));

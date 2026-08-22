@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "experiment_id": "exp_parity_1",
+  "candidate_ref": "cand_parity_org",
+  "unit": "build_ticket",
+  "hypothesis": "type-checking before done reduces review cycles",
+  "control": {
+    "fingerprint_ref": "sys_parity_control"
+  },
+  "treatment": {
+    "fingerprint_ref": "sys_parity_treatment"
+  },
+  "eligibility": {
+    "episodes": "evals/roles/builder/standard-tickets",
+    "app": "web",
+    "stage": [
+      "live"
+    ]
+  },
+  "primary_metric": {
+    "name": "held_in_pass",
+    "expected_direction": "increase",
+    "min_useful_improvement_pct": 0
+  },
+  "guardrails": [
+    {
+      "metric": "merged",
+      "rule": "must_not_decrease"
+    }
+  ],
+  "trials": {
+    "layer": "replay",
+    "repetitions": 1,
+    "early_stop": {
+      "on_held_in_failure": true,
+      "on_guardrail_trip": true
+    }
+  },
+  "observation": {
+    "outcome_maturity_days": 0
+  },
+  "stop_thresholds": null,
+  "decision": {
+    "promote_if": "primary_metric_improves_and_all_guardrails_pass",
+    "otherwise": "reject_extend_or_revise"
+  },
+  "efficacy_protocol": null,
+  "status": "decided",
+  "result": "eval_7e96359bd438"
+}

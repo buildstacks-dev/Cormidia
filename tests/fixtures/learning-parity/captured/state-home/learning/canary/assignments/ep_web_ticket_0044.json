@@ -1,0 +1,9 @@
+{
+  "episode_id": "ep_web_ticket_0044",
+  "app": "web",
+  "turn_id": "turn_parity_1",
+  "assigned_at": "2026-08-21T12:05:00.000Z",
+  "bucket": 0.6572213304272296,
+  "roots": {},
+  "lineage": "stable"
+}

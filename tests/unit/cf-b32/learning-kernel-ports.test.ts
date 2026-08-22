@@ -20,7 +20,7 @@ import {
   scopeFromLoopScope,
   scopeParts,
 } from "../../../src/org/learning-loop/scope.js";
-import type { SystemFingerprint } from "../../../src/org/learning/fingerprint.js";
+import type { SystemFingerprint } from "../../../src/org/learning-loop/host/fingerprint.js";
 
 const ORG = "acme";
 

@@ -2,8 +2,8 @@ import { STATE_LABELS } from "../loop/plan-tickets.js";
 import { resolveAppWorkdir } from "./app-workdir.js";
 import type { AppEntry } from "./apps.js";
 import type { DueEvent, GitHubIssueSummary } from "./events.js";
-import { prepareDistillation, prepareLearningReview } from "./learning/distillation.js";
-import { loadLearningPolicy } from "./learning/policy.js";
+import { prepareDistillation, prepareLearningReview } from "./learning-loop/host/distillation.js";
+import { loadLearningPolicy } from "./learning-loop/host/policy.js";
 import { readPlannerFeeds } from "./standing-roles.js";
 
 type EligibilityConfiguration = "declared" | "missing" | "unavailable";

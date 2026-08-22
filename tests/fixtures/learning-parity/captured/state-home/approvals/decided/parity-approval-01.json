@@ -1,0 +1,40 @@
+{
+  "id": "parity-approval-01",
+  "app": "org",
+  "role": "learning",
+  "rule": "learning-publish",
+  "action": {
+    "tool": "learning_publish",
+    "input": {
+      "base_manifest_version": "unversioned",
+      "candidate_hash": "sha256:12fd2c244f209f4b1701fbbd446f9f015ac1a86af6d1522cee8c13847ef0a33d",
+      "candidate_id": "cand_parity_org",
+      "destination": "okf_concept",
+      "final_diff_hash": "sha256:61cee7a2f0be0aef9c5cda1bbe4d113e53c1092652b9a6860201afac4b5102f2",
+      "kind": "learning_publish",
+      "scope": "org",
+      "tier": "T1",
+      "verdict_hash": "sha256:3eaa4a6c26edcec7f713391a4e45977174415969d2a220e1d073648558e6a6b3",
+      "waivers": []
+    },
+    "description": "learning publish: okf_concept cand_parity_org (tier T1, scope org)"
+  },
+  "raisedAt": "2026-08-21T12:00:00.000Z",
+  "status": "approved",
+  "justification": "rationale for cand_parity_org",
+  "decision": "approved",
+  "decidedAt": "2026-08-21T12:00:00.000Z",
+  "decidedBy": {
+    "kind": "human",
+    "identity": "human/operator"
+  },
+  "reason": "approved by human/operator",
+  "execution": {
+    "state": "approved",
+    "executor": "actor-retry",
+    "idempotencyKey": "approval:parity-approval-01:a227f6d7a8dbd616d2c751e91884d14a434eae08f1fa18cb06ef7cfcfc699e35",
+    "attempts": 0,
+    "nextAction": "actor_retry"
+  },
+  "grantId": "grant-parity-approval-01"
+}

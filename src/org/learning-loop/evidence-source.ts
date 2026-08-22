@@ -6,6 +6,16 @@
 // never folded silently. A file that fails Cormidia's own episode validator
 // makes its page `corrupt` with a diagnostic naming the file — evidence
 // health, never an empty success (AGENTS.md source-health rule).
+//
+// Scoped projections (phase B, compatibility-policy record §4.1): the kernel
+// requires candidate evidence to carry the candidate's EXACT scope, while a
+// Cormidia episode is app-scoped by construction. A candidate at any other
+// V1 scope (org, roles/<r>, apps/<a>/roles/<r>) cites the same episode files
+// projected AT THAT SCOPE: one projection per scope shape, whose record ids
+// and provider-neutral episode ids carry the scope key so the projections
+// never collide or conflict in the kernel's identity claims. The default
+// (unscoped) projection is the primary one: it is what exposure, experiments,
+// and reports address.
 
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
@@ -21,6 +31,7 @@ import type {
   ProjectedMeasurement,
   ProjectedObservation,
 } from "@cormidia/learning-loop";
+import { isValidLoopScope } from "../memory.js";
 import { parseEpisodeEvidenceRecord, type EpisodeEvidenceRecord } from "./episode-evidence-record.js";
 import { scopeFromLoopScope } from "./scope.js";
 
@@ -32,9 +43,12 @@ export interface EpisodeEvidenceInput {
   readonly stateHome: string;
   readonly org: string;
   readonly pageSize?: number;
+  /** A V1 loop scope to project every episode at (the scoped projection);
+   *  absent, each episode projects at its own app scope `apps/<app>`. */
+  readonly scope?: string;
 }
 
-const METRICS = {
+export const EPISODE_METRICS = {
   episode_completed: { name: "episode_completed", valueType: "boolean", unit: "pass", aggregation: "all" },
   cost_usd: { name: "cost_usd", valueType: "number", unit: "usd", aggregation: "sum" },
   review_cycles: { name: "review_cycles", valueType: "number", unit: "count", aggregation: "sum" },
@@ -44,6 +58,19 @@ const METRICS = {
 
 function episodesDir(stateHome: string): string {
   return join(stateHome, "learning", "episodes");
+}
+
+/** The projection suffix for a scoped projection (`@org`, `@roles.builder`);
+ *  empty for the primary (app-scoped) projection. */
+export function projectionSuffix(scope: string | undefined): string {
+  if (scope === undefined) return "";
+  if (!isValidLoopScope(scope)) throw new Error(`learning-loop: "${scope}" is not a valid V1 scope (spec §2)`);
+  return `@${scope.split("/").join(".")}`;
+}
+
+/** The kernel's durable observation id for one projected record (`<source>/<record>`). */
+export function episodeObservationId(sourceRecordId: string): string {
+  return `${EPISODE_SOURCE_ID}/${sourceRecordId}`;
 }
 
 interface EpisodeFile {
@@ -78,12 +105,14 @@ function outcomeStatus(record: EpisodeEvidenceRecord): ProjectedEpisode["status"
 function project(
   record: EpisodeEvidenceRecord,
   org: string,
+  scope: string | undefined,
 ): {
   readonly episode: ProjectedEpisode;
   readonly observations: ProjectedObservation[];
   readonly measurements: ProjectedMeasurement[];
 } {
-  const id = record.episode_id;
+  const suffix = projectionSuffix(scope);
+  const id = `${record.episode_id}${suffix}`;
   const completeness = record.status === "closed" ? "complete" : "partial";
   const observations: ProjectedObservation[] = record.gates.map((gate, index) => ({
     sourceRecordId: `gate:${id}:${index}`,
@@ -120,11 +149,11 @@ function project(
       completeness,
     });
     const values: ReadonlyArray<readonly [MetricDefinition, number | boolean]> = [
-      [METRICS.episode_completed, outcome.completed],
-      [METRICS.cost_usd, outcome.cost_usd],
-      [METRICS.review_cycles, outcome.review_cycles],
-      [METRICS.gate_failures, outcome.gate_failures],
-      [METRICS.human_interventions, outcome.human_interventions],
+      [EPISODE_METRICS.episode_completed, outcome.completed],
+      [EPISODE_METRICS.cost_usd, outcome.cost_usd],
+      [EPISODE_METRICS.review_cycles, outcome.review_cycles],
+      [EPISODE_METRICS.gate_failures, outcome.gate_failures],
+      [EPISODE_METRICS.human_interventions, outcome.human_interventions],
     ];
     for (const [metric, value] of values) {
       measurements.push({
@@ -143,7 +172,7 @@ function project(
     episodeId: id,
     episodeClass: record.kind,
     completeness,
-    scope: scopeFromLoopScope(org, `apps/${record.app}`),
+    scope: scopeFromLoopScope(org, scope ?? `apps/${record.app}`),
     openedAt: record.opened,
     ...(record.closed !== undefined ? { closedAt: record.closed } : {}),
     ...(status !== undefined ? { status } : {}),
@@ -169,6 +198,11 @@ function corruptPage(
   };
 }
 
+function sourceRefFor(input: EpisodeEvidenceInput): string {
+  const dir = episodesDir(input.stateHome);
+  return input.scope === undefined ? dir : `${dir}?scope=${input.scope}`;
+}
+
 export function createEpisodeEvidenceSource(): EvidenceSource<EpisodeEvidenceInput> {
   return {
     descriptor: { id: EPISODE_SOURCE_ID, adapterVersion: ADAPTER_VERSION, maximumTrust: "observed" },
@@ -181,10 +215,12 @@ export function createEpisodeEvidenceSource(): EvidenceSource<EpisodeEvidenceInp
           ],
         };
       }
+      projectionSuffix(input.scope);
       return { supported: true, sourceRevision: revisionOf(await listEpisodeFiles(input.stateHome)), diagnostics: [] };
     },
     read: async function* (input, cursor) {
-      const sourceRef = episodesDir(input.stateHome);
+      const dir = episodesDir(input.stateHome);
+      const sourceRef = sourceRefFor(input);
       const pageSize = input.pageSize ?? DEFAULT_PAGE_SIZE;
       let start = cursor === undefined ? 0 : Number.parseInt(cursor, 10);
       if (!Number.isInteger(start) || start < 0)
@@ -202,8 +238,8 @@ export function createEpisodeEvidenceSource(): EvidenceSource<EpisodeEvidenceInp
         const measurements: ProjectedMeasurement[] = [];
         for (const file of slice) {
           try {
-            const raw: unknown = JSON.parse(await readFile(join(sourceRef, file.name), "utf8"));
-            const projected = project(parseEpisodeEvidenceRecord(raw, file.name), input.org);
+            const raw: unknown = JSON.parse(await readFile(join(dir, file.name), "utf8"));
+            const projected = project(parseEpisodeEvidenceRecord(raw, file.name), input.org, input.scope);
             episodes.push(projected.episode);
             observations.push(...projected.observations);
             measurements.push(...projected.measurements);
@@ -220,7 +256,7 @@ export function createEpisodeEvidenceSource(): EvidenceSource<EpisodeEvidenceInp
           diagnostics.push({
             code: "source.empty",
             severity: "info",
-            message: `no episode records under ${sourceRef}`,
+            message: `no episode records under ${dir}`,
           });
         }
         yield {

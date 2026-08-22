@@ -373,32 +373,32 @@ controls:
   - id: NC-CF-J12-S
     title: Seeded violation for CF-J12-S
     owner: bikramgupta
-    expected_failure: Seed NC-CF-J12-S for CF-J12-S by changing its named fixture, implementation, or evidence so it contradicts the protected CF-J12-S meaning in this catalog; tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-s.test.ts must fail or preserve an incomplete, inconclusive, or unobserved state. The exact planned implementation is the injection point and oracle; prose or a landed ticket can never preserve green.
+    expected_failure: Seed NC-CF-J12-S for CF-J12-S by changing its named fixture, implementation, or evidence so it contradicts the protected CF-J12-S meaning in this catalog; tests/hermetic/cf-c-b32-cf-j12-cf-sm-learn/cf-j12-s.test.ts must fail or preserve an incomplete, inconclusive, or unobserved state. The exact planned implementation is the injection point and oracle; prose or a landed ticket can never preserve green.
     family_id: CF-J12-S
   - id: NC-CF-J12-R
     title: Seeded violation for CF-J12-R
     owner: bikramgupta
-    expected_failure: Seed NC-CF-J12-R for CF-J12-R by changing its named fixture, implementation, or evidence so it contradicts the protected CF-J12-R meaning in this catalog; tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-r.test.ts must fail or preserve an incomplete, inconclusive, or unobserved state. The exact planned implementation is the injection point and oracle; prose or a landed ticket can never preserve green.
+    expected_failure: Seed NC-CF-J12-R for CF-J12-R by changing its named fixture, implementation, or evidence so it contradicts the protected CF-J12-R meaning in this catalog; tests/hermetic/cf-c-b11-cf-j12-r-cf-reg-251/cf-j12-r.test.ts must fail or preserve an incomplete, inconclusive, or unobserved state. The exact planned implementation is the injection point and oracle; prose or a landed ticket can never preserve green.
     family_id: CF-J12-R
   - id: NC-CF-J12-R-L2
     title: Seeded violation for CF-J12-R-L2
     owner: bikramgupta
-    expected_failure: Seed NC-CF-J12-R-L2 for CF-J12-R-L2 by changing its named fixture, implementation, or evidence so it contradicts the protected CF-J12-R meaning in this catalog; tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-r.test.ts must fail or preserve an incomplete, inconclusive, or unobserved state. The exact planned implementation is the injection point and oracle; prose or a landed ticket can never preserve green.
+    expected_failure: Seed NC-CF-J12-R-L2 for CF-J12-R-L2 by changing its named fixture, implementation, or evidence so it contradicts the protected CF-J12-R meaning in this catalog; tests/hermetic/cf-c-b11-cf-j12-r-cf-reg-251/cf-j12-r.test.ts must fail or preserve an incomplete, inconclusive, or unobserved state. The exact planned implementation is the injection point and oracle; prose or a landed ticket can never preserve green.
     family_id: CF-J12-R-L2
   - id: NC-CF-J12-I
     title: Seeded violation for CF-J12-I
     owner: bikramgupta
-    expected_failure: Seed NC-CF-J12-I for CF-J12-I by changing its named fixture, implementation, or evidence so it contradicts the protected CF-J12-I meaning in this catalog; tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-i.test.ts must fail or preserve an incomplete, inconclusive, or unobserved state. The exact planned implementation is the injection point and oracle; prose or a landed ticket can never preserve green.
+    expected_failure: Seed NC-CF-J12-I for CF-J12-I by changing its named fixture, implementation, or evidence so it contradicts the protected CF-J12-I meaning in this catalog; tests/hermetic/cf-c-b32-cf-j12-cf-sm-learn/cf-j12-i.test.ts must fail or preserve an incomplete, inconclusive, or unobserved state. The exact planned implementation is the injection point and oracle; prose or a landed ticket can never preserve green.
     family_id: CF-J12-I
   - id: NC-CF-J12-RC
     title: Seeded violation for CF-J12-RC
     owner: bikramgupta
-    expected_failure: Seed NC-CF-J12-RC for CF-J12-RC by changing its named fixture, implementation, or evidence so it contradicts the protected CF-J12-RC meaning in this catalog; tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-rc.test.ts must fail or preserve an incomplete, inconclusive, or unobserved state. The exact planned implementation is the injection point and oracle; prose or a landed ticket can never preserve green.
+    expected_failure: Seed NC-CF-J12-RC for CF-J12-RC by changing its named fixture, implementation, or evidence so it contradicts the protected CF-J12-RC meaning in this catalog; tests/hermetic/cf-c-b32-cf-j12-cf-sm-learn/cf-j12-rc.test.ts must fail or preserve an incomplete, inconclusive, or unobserved state. The exact planned implementation is the injection point and oracle; prose or a landed ticket can never preserve green.
     family_id: CF-J12-RC
   - id: NC-CF-J12-A
     title: Seeded violation for CF-J12-A
     owner: bikramgupta
-    expected_failure: Seed NC-CF-J12-A for CF-J12-A by changing its named fixture, implementation, or evidence so it contradicts the protected CF-J12-A meaning in this catalog; tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-a.test.ts must fail or preserve an incomplete, inconclusive, or unobserved state. The exact planned implementation is the injection point and oracle; prose or a landed ticket can never preserve green.
+    expected_failure: Seed NC-CF-J12-A for CF-J12-A by changing its named fixture, implementation, or evidence so it contradicts the protected CF-J12-A meaning in this catalog; tests/hermetic/cf-c-b32-cf-j12-cf-sm-learn/cf-j12-a.test.ts must fail or preserve an incomplete, inconclusive, or unobserved state. The exact planned implementation is the injection point and oracle; prose or a landed ticket can never preserve green.
     family_id: CF-J12-A
   - id: NC-CF-J14-S
     title: Seeded violation for CF-J14-S
@@ -763,22 +763,22 @@ controls:
   - id: NC-CF-SM-LEARN-L
     title: Seeded violation for CF-SM-LEARN-L
     owner: bikramgupta
-    expected_failure: Seed NC-CF-SM-LEARN-L for CF-SM-LEARN-L by changing its named fixture, implementation, or evidence so it contradicts the protected CF-SM-LEARN-L meaning in this catalog; tests/hermetic/cf-c-b11-cf-sm-learn-c-cf-sm-learn-i-cf-sm-learn-l-cf-sm-learn-r/cf-sm-learn-l.test.ts must fail or preserve an incomplete, inconclusive, or unobserved state. The exact planned implementation is the injection point and oracle; prose or a landed ticket can never preserve green.
+    expected_failure: Seed NC-CF-SM-LEARN-L for CF-SM-LEARN-L by changing its named fixture, implementation, or evidence so it contradicts the protected CF-SM-LEARN-L meaning in this catalog; tests/hermetic/cf-c-b32-cf-j12-cf-sm-learn/cf-sm-learn-l.test.ts must fail or preserve an incomplete, inconclusive, or unobserved state. The exact planned implementation is the injection point and oracle; prose or a landed ticket can never preserve green.
     family_id: CF-SM-LEARN-L
   - id: NC-CF-SM-LEARN-I
     title: Seeded violation for CF-SM-LEARN-I
     owner: bikramgupta
-    expected_failure: Seed NC-CF-SM-LEARN-I for CF-SM-LEARN-I by changing its named fixture, implementation, or evidence so it contradicts the protected CF-SM-LEARN-I meaning in this catalog; tests/hermetic/cf-c-b11-cf-sm-learn-c-cf-sm-learn-i-cf-sm-learn-l-cf-sm-learn-r/cf-sm-learn-i.test.ts must fail or preserve an incomplete, inconclusive, or unobserved state. The exact planned implementation is the injection point and oracle; prose or a landed ticket can never preserve green.
+    expected_failure: Seed NC-CF-SM-LEARN-I for CF-SM-LEARN-I by changing its named fixture, implementation, or evidence so it contradicts the protected CF-SM-LEARN-I meaning in this catalog; tests/hermetic/cf-c-b32-cf-j12-cf-sm-learn/cf-sm-learn-i.test.ts must fail or preserve an incomplete, inconclusive, or unobserved state. The exact planned implementation is the injection point and oracle; prose or a landed ticket can never preserve green.
     family_id: CF-SM-LEARN-I
   - id: NC-CF-SM-LEARN-R
     title: Seeded violation for CF-SM-LEARN-R
     owner: bikramgupta
-    expected_failure: Seed NC-CF-SM-LEARN-R for CF-SM-LEARN-R by changing its named fixture, implementation, or evidence so it contradicts the protected CF-SM-LEARN-R meaning in this catalog; tests/hermetic/cf-c-b11-cf-sm-learn-c-cf-sm-learn-i-cf-sm-learn-l-cf-sm-learn-r/cf-sm-learn-r.test.ts must fail or preserve an incomplete, inconclusive, or unobserved state. The exact planned implementation is the injection point and oracle; prose or a landed ticket can never preserve green.
+    expected_failure: Seed NC-CF-SM-LEARN-R for CF-SM-LEARN-R by changing its named fixture, implementation, or evidence so it contradicts the protected CF-SM-LEARN-R meaning in this catalog; tests/hermetic/cf-c-b32-cf-j12-cf-sm-learn/cf-sm-learn-r.test.ts must fail or preserve an incomplete, inconclusive, or unobserved state. The exact planned implementation is the injection point and oracle; prose or a landed ticket can never preserve green.
     family_id: CF-SM-LEARN-R
   - id: NC-CF-SM-LEARN-C
     title: Seeded violation for CF-SM-LEARN-C
     owner: bikramgupta
-    expected_failure: Seed NC-CF-SM-LEARN-C for CF-SM-LEARN-C by changing its named fixture, implementation, or evidence so it contradicts the protected CF-SM-LEARN-C meaning in this catalog; tests/hermetic/cf-c-b11-cf-sm-learn-c-cf-sm-learn-i-cf-sm-learn-l-cf-sm-learn-r/cf-sm-learn-c.test.ts must fail or preserve an incomplete, inconclusive, or unobserved state. The exact planned implementation is the injection point and oracle; prose or a landed ticket can never preserve green.
+    expected_failure: Seed NC-CF-SM-LEARN-C for CF-SM-LEARN-C by changing its named fixture, implementation, or evidence so it contradicts the protected CF-SM-LEARN-C meaning in this catalog; tests/hermetic/cf-c-b32-cf-j12-cf-sm-learn/cf-sm-learn-c.test.ts must fail or preserve an incomplete, inconclusive, or unobserved state. The exact planned implementation is the injection point and oracle; prose or a landed ticket can never preserve green.
     family_id: CF-SM-LEARN-C
   - id: NC-CF-SM-EVENT-L
     title: Seeded violation for CF-SM-EVENT-L
@@ -1583,12 +1583,12 @@ controls:
   - id: NC-CF-C-B11
     title: Seeded violation for CF-C-B11
     owner: bikramgupta
-    expected_failure: Seed NC-CF-C-B11 for CF-C-B11 by changing its named fixture, implementation, or evidence so it contradicts the protected CF-C-B11 meaning in this catalog; tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-a.test.ts, tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-i.test.ts, tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-r.test.ts, tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-rc.test.ts, tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-s.test.ts, tests/hermetic/cf-c-b11-cf-sm-learn-c-cf-sm-learn-i-cf-sm-learn-l-cf-sm-learn-r/cf-sm-learn-c.test.ts, tests/hermetic/cf-c-b11-cf-sm-learn-c-cf-sm-learn-i-cf-sm-learn-l-cf-sm-learn-r/cf-sm-learn-i.test.ts, tests/hermetic/cf-c-b11-cf-sm-learn-c-cf-sm-learn-i-cf-sm-learn-l-cf-sm-learn-r/cf-sm-learn-l.test.ts, tests/hermetic/cf-c-b11-cf-sm-learn-c-cf-sm-learn-i-cf-sm-learn-l-cf-sm-learn-r/cf-sm-learn-r.test.ts must fail or preserve an incomplete, inconclusive, or unobserved state. The exact planned implementation is the injection point and oracle; prose or a landed ticket can never preserve green.
+    expected_failure: Seed NC-CF-C-B11 for CF-C-B11 by changing its named fixture, implementation, or evidence so it contradicts the protected CF-C-B11 meaning in this catalog; tests/hermetic/cf-c-b11-cf-j12-r-cf-reg-251/cf-j12-r.test.ts must fail or preserve an incomplete, inconclusive, or unobserved state. The exact planned implementation is the injection point and oracle; prose or a landed ticket can never preserve green.
     family_id: CF-C-B11
   - id: NC-CF-C-B11-L2
     title: Seeded violation for CF-C-B11-L2
     owner: bikramgupta
-    expected_failure: Seed NC-CF-C-B11-L2 for CF-C-B11-L2 by changing its named fixture, implementation, or evidence so it contradicts the protected CF-C-B11 meaning in this catalog; tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-a.test.ts, tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-i.test.ts, tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-r.test.ts, tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-rc.test.ts, tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-s.test.ts, tests/hermetic/cf-c-b11-cf-sm-learn-c-cf-sm-learn-i-cf-sm-learn-l-cf-sm-learn-r/cf-sm-learn-c.test.ts, tests/hermetic/cf-c-b11-cf-sm-learn-c-cf-sm-learn-i-cf-sm-learn-l-cf-sm-learn-r/cf-sm-learn-i.test.ts, tests/hermetic/cf-c-b11-cf-sm-learn-c-cf-sm-learn-i-cf-sm-learn-l-cf-sm-learn-r/cf-sm-learn-l.test.ts, tests/hermetic/cf-c-b11-cf-sm-learn-c-cf-sm-learn-i-cf-sm-learn-l-cf-sm-learn-r/cf-sm-learn-r.test.ts must fail or preserve an incomplete, inconclusive, or unobserved state. The exact planned implementation is the injection point and oracle; prose or a landed ticket can never preserve green.
+    expected_failure: Seed NC-CF-C-B11-L2 for CF-C-B11-L2 by changing its named fixture, implementation, or evidence so it contradicts the protected CF-C-B11 meaning in this catalog; tests/hermetic/cf-c-b32-cf-j12-cf-sm-learn/cf-j12-s.test.ts, tests/hermetic/cf-c-b32-cf-j12-cf-sm-learn/cf-sm-learn-i.test.ts, tests/hermetic/cf-c-b32-cf-j12-cf-sm-learn/cf-sm-learn-l.test.ts must fail or preserve an incomplete, inconclusive, or unobserved state. The exact planned implementation is the injection point and oracle; prose or a landed ticket can never preserve green.
     family_id: CF-C-B11-L2
   - id: NC-CF-C-B12
     title: Seeded violation for CF-C-B12
@@ -1775,6 +1775,11 @@ controls:
     owner: bikramgupta
     expected_failure: Seed NC-CF-B32 for CF-B32 by changing its named fixture, implementation, or evidence so it contradicts the protected CF-B32 meaning in this catalog; tests/hermetic/cf-b32/learning-kernel-failure-modes.test.ts must fail or preserve an incomplete, inconclusive, or unobserved state. The exact planned implementation is the injection point and oracle; prose or a landed ticket can never preserve green.
     family_id: CF-B32
+  - id: NC-CF-B32-PARITY
+    title: Seeded violation for CF-B32-PARITY
+    owner: bikramgupta
+    expected_failure: Seed NC-CF-B32-PARITY for CF-B32-PARITY by changing its named fixture, implementation, or evidence so it contradicts the protected CF-B32-PARITY meaning in this catalog; tests/hermetic/cf-b32/learning-kernel-parity.test.ts must fail or preserve an incomplete, inconclusive, or unobserved state. The exact planned implementation is the injection point and oracle; prose or a landed ticket can never preserve green.
+    family_id: CF-B32-PARITY
   - id: NC-CF-J12-K
     title: Seeded violation for CF-J12-K
     owner: bikramgupta
@@ -2263,7 +2268,7 @@ controls:
   - id: NC-CF-REG-251
     title: Seeded violation for CF-REG-251
     owner: bikramgupta
-    expected_failure: Seed NC-CF-REG-251 for CF-REG-251 by changing its named fixture, implementation, or evidence so it contradicts the protected CF-REG-251 meaning in this catalog; tests/hermetic/cf-c-b11-cf-j12-a-cf-j12-i-cf-j12-r-cf-j12-rc-cf-j12-s-cf-reg-251/cf-j12-i.test.ts must fail or preserve an incomplete, inconclusive, or unobserved state. The exact planned implementation is the injection point and oracle; prose or a landed ticket can never preserve green.
+    expected_failure: Seed NC-CF-REG-251 for CF-REG-251 by changing its named fixture, implementation, or evidence so it contradicts the protected CF-REG-251 meaning in this catalog; tests/hermetic/cf-c-b11-cf-j12-r-cf-reg-251/cf-reg-251.test.ts must fail or preserve an incomplete, inconclusive, or unobserved state. The exact planned implementation is the injection point and oracle; prose or a landed ticket can never preserve green.
     family_id: CF-REG-251
   - id: NC-CF-REG-268
     title: Seeded violation for CF-REG-268

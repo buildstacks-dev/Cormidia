@@ -924,14 +924,18 @@ regressions. Agreement alone is insufficient.
 
 ## 15. Extraction Later
 
-> **Migration status (2026-08-21, #467 phase A).** The kernel now lives in
+> **Migration status (2026-08-21, #467 phase B).** The kernel lives in
 > `github.com/cormidia/governed-learning-loop` (`@cormidia/learning-loop`, vendored
-> as an exact tarball). `src/org/learning-loop/` maps Cormidia's episodes, approvals,
-> OKF bundle, and replay onto its public ports and passes its conformance suites;
-> the engine described in this document remains the operator path until phase B
-> cuts over and retires it. Policy and deltas:
-> `research/2026-08-21_learning-loop-migration-compatibility-policy.md`; boundary
-> contract: `validation-design/contracts/B-32-learning-kernel-ports.md`.
+> as an exact tarball) and is Cormidia's learning engine: `src/org/learning-loop/`
+> composes it over Cormidia's episodes, approvals, OKF bundle, GitHub, and loop
+> replay, and the `learn *` CLI, the scheduled distiller/reviewer turns, and context
+> assembly run through it. The host-owned parts of this design (capture, episodes,
+> events, OKF concepts and manifest, policy, canary, replay execution, candidate and
+> verdict stores) live under `src/org/learning-loop/host/`; the forked deterministic
+> engine (publisher, experiment runner, efficacy decisions) is removed — the kernel
+> journal, plans, and evaluations replace it. Policy, rulings, and parity evidence:
+> `research/2026-08-21_learning-loop-migration-compatibility-policy.md` §7–§9;
+> boundary contract: `validation-design/contracts/B-32-learning-kernel-ports.md`.
 
 
 If a second orchestrator wants this system, the interfaces can be extracted:

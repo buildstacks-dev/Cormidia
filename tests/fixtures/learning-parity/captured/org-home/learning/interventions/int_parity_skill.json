@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "intervention_id": "int_parity_skill",
+  "candidate_ref": "cand_parity_skill",
+  "destination": "skill_draft",
+  "reviewed_content_hash": "sha256:e245267529924cfcf0b9cccf83d90efd908c097b504ed9a98e7ec25b4d86ab3b",
+  "approval_ref": null,
+  "publish": {
+    "kind": "commit",
+    "ref": "<org-home>/learning/proposals/skills/cand_parity_skill.md",
+    "commit": null,
+    "published_at": "2026-08-21T12:03:00.000Z"
+  },
+  "activation": null,
+  "affected_episodes": null,
+  "experiment_ref": null,
+  "outcome_ref": null,
+  "rollback": null,
+  "status": "published"
+}

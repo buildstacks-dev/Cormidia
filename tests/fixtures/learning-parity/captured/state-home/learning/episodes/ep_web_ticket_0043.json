@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "episode_id": "ep_web_ticket_0043",
+  "kind": "build_ticket",
+  "app": "web",
+  "source": {
+    "kind": "github_issue",
+    "ref": "web#43"
+  },
+  "stage": null,
+  "risk_tier": null,
+  "opened": "2026-08-20T09:00:00.000Z",
+  "closed": "2026-08-20T10:00:00.000Z",
+  "status": "closed",
+  "fingerprint_ref": null,
+  "bundle_lineage": null,
+  "turns": [],
+  "gates": [
+    {
+      "gate": "typecheck",
+      "status": "fail",
+      "run_id": "run-1"
+    },
+    {
+      "gate": "typecheck",
+      "status": "pass",
+      "run_id": "run-2"
+    }
+  ],
+  "approvals": [],
+  "artifacts": [],
+  "side_effects": [],
+  "outcome": {
+    "completed": true,
+    "merged": true,
+    "release_disposition": "merged",
+    "review_cycles": 2,
+    "gate_failures": 1,
+    "human_interventions": 1,
+    "cost_usd": 1.25,
+    "cost_estimated": false,
+    "unsettled_runs": [],
+    "terminal_reason": "completed"
+  },
+  "late_outcomes": [
+    {
+      "kind": "revert",
+      "ref": "pr-7",
+      "recorded": "2026-08-21T08:00:00.000Z"
+    }
+  ],
+  "human_observations": []
+}

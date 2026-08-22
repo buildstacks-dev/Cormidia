@@ -213,7 +213,7 @@ describe("CF-SM-GRANT-I — the never-broadly-scopeable set (L1 guardrail surfac
     // A silent rename in gate.ts would orphan the never-scopeable entry and
     // quietly make the renamed rule widenable. `learning-publish` is the one
     // member that is not a classifier rule — it is raised directly by the
-    // learning publisher (src/org/learning/publisher.ts) with that literal.
+    // legacy learning publisher binding (src/org/learning-loop/legacy.ts) with that literal.
     const liveRuleNames = CRITICAL_RULES.map((rule) => rule.name);
     for (const rule of NEVER_SCOPEABLE_RULES) {
       // Not classifier rules: learning-publish is raised by the learning

@@ -92,8 +92,5 @@
     "validation-architect": "file:vendor/validation-architect-0.4.16.tgz",
     "vitest": "3.2.6"
   },
-  "packageManager": "pnpm@11.10.0",
-  "bundleDependencies": [
-    "@cormidia/learning-loop"
-  ]
+  "packageManager": "pnpm@11.10.0"
 }

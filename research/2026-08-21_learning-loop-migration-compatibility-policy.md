@@ -20,7 +20,7 @@ deltas phase B's parity audit must close. The adapter contract itself is
 | Tarball | 654,851 bytes, 529 entries; SHA-256 `b782fd293146199813fa21ce6679948b5e4f7d0678fd92e3757bbb38d8231927`; npm integrity `sha512-HZiQE8AdffHh7fB2/827II7zRafPr3FfQNv1o9/rZuhN21kC8Zd68knsBqrNYZ1cegnoHYBuXkQ7SJ6ElGbIqg==` |
 | Reproduction | two clean detached checkouts of the same commit, `pnpm install --frozen-lockfile --offline`, `rm -rf dist`, `pnpm pack` (prepack builds) — byte-identical |
 | Tag / release | `v0.1.0` and its release asset are the maintainer's hand-cut actions (Decision 0029 R6/R8); pending at the time of this record |
-| Packaged install | the tarball is listed in Cormidia's `package.json` `files` so `npm pack`/`smoke:package` installs can resolve the `file:` dependency; moving to the registry later is a one-line specifier change |
+| Packaged install | **Not installable through `npm install -g <cormidia tarball>` while the kernel is unpublished** (F-PT-042): npm resolves a `file:vendor/*.tgz` runtime dependency before the parent tarball is extracted (ENOENT), and `bundleDependencies` — which makes a local `npm install` of the tarball complete — reifies a damaged partial tree under `npm install -g` (npm 11.19). Development (`pnpm install --frozen-lockfile`), Core Checks, and the offline suite are unaffected; the release lane's `smoke:package` is red until the kernel is on a registry (governed-learning-loop #62) or the owner rules another mechanism. Moving to the registry is a one-line specifier change |
 
 ## 2. Where things live after phase A
 

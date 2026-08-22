@@ -28,6 +28,47 @@ must never be used as a runtime, CI, campaign, ticket-contract, fallback, or
 rollback source. Cutover replay evidence under `migration/` is likewise
 history-only; rollback is a revert to the intact parent revision.
 
+## Harness revision — learning kernel boundary B-32 (2026-08-21, Cormidia #467 phase A)
+
+Diff-scoped, steady-state re-entry (`validation-harness-design`, `harness-revision` mode, the
+pinned 0.4.16 skill): Cormidia #467 phase A makes Cormidia a consumer of the extracted
+governed-learning-loop kernel (`@cormidia/learning-loop` 0.1.0, an exact vendored tarball —
+identity in `research/2026-08-21_learning-loop-migration-compatibility-policy.md`). The
+clause-vs-shape test is unambiguous: a kernel that owns its own records in its own store and
+fails independently of the approvals store and the git substrate is a **new state owner and a
+new failure domain** — the B-30 jobs precedent, not a clause on B-11. Sourcing channel 4
+(substrate drift) fires too: the kernel is a new durable store and a new effect site, so the
+enumerating guards were re-checked — `learning-surface-tamper` (the OKF destination writes the
+same protected paths the deterministic publisher writes, in-process, never from an agent turn)
+and CF-INV-001's learning-path seed (unchanged: the kernel path grants no authority; a
+candidate is inert and only an approved `learning_loop_publish` item in the existing approvals
+store authorizes a plan).
+
+**Human stop recorded.** The skill names a new boundary as something that stops for a human
+even in steady state. This session was non-interactive; the boundary is therefore registered
+here as `PROPOSED`-until-merge: the owner's squash-merge of the phase-A PR is the ratification
+(the #465 cutover precedent), and if the owner rejects the boundary the revision reverts with
+the PR. No test encodes the open product-truth question F-PT-041.
+
+**Registered structure.** B-32 (Cormidia learning adapters ↔ governed-learning-loop kernel),
+CORMIDIA-C-B32-001…005 (`contracts/B-32-learning-kernel-ports.md`). Families CF-C-B32,
+CF-C-B32-L2, CF-B32 (covers every declared B-32 failure mode by citation; version/schema skew
+and coexistence dual-writing are declared and remain uncovered until phase B names their
+seams), and CF-J12-K (J-12 on the kernel path). Controls NC-CF-C-B32, NC-CF-C-B32-L2,
+NC-CF-B32, NC-CF-J12-K. Tickets HB-156 (L1) and HB-156-L2 (L2), both landed in the same
+change. `boundary-map.md` §1 gains the B-32 entry and §3 the edge; no invariant, LLM site, or
+tier changes; nothing loosened.
+
+**Not a migration of B-11.** The forked engine, its publisher seam, and every CF-J12-\* /
+CF-SM-LEARN-\* / CF-C-B11 family are unchanged and still the operator path. The compatibility
+policy (research record §3) rules exact byte/state preservation for active binding and
+publication artifacts and compatibility readers for broader history; phase B's parity audit
+and cutover re-enter this skill if they move B-11's shape.
+
+**Machine state.** Eight-file model recompiled through the public 0.4.16 compiler;
+`product.revision` re-bound per the F-PT-040 interim protocol (post-merge design-only re-bind
+owed).
+
 ## Harness revision — governed planning-source scope (2026-08-12, F-PT-039 / #386)
 
 Diff-scoped revision resolving F-PT-039: `docs/PURPOSE.md` non-negotiable 2 governs
@@ -696,6 +737,20 @@ process-identity probe.
   HB-005(d), README count/range, runbook §1.5.
 - F-PT-032 (**RESOLVED-ratified 2026-08-08**; raised the same day during the HB-120…130 wave): **do B-28 §1's four plant categories apply to a JOB scenario?** They are plan-axis instrumentation and a job has no plan arm, so requiring them of S-ACC-3 demanded instrumentation for a measurement that never happens — and because **J-2 is scored against the sealed key**, an unextractable key left the highest-value job axis permanently `ungraded`. **Owner decision:** §2 is scoped to app scenarios; job scenarios carry their own four (preserved input conflict · undiscoverable answer · mechanically-checkable deliverable constraint · tangent), both lists complete-or-refused, unmapped lead-ins still refused and named. Not a loosening — an inapplicable requirement of cardinality four was replaced by an applicable one of the same cardinality and semantics. **S-ACC-3 was not edited**; it already satisfies the job list. Recorded as a second ratification block at `acceptance/rubric.md` §9, per that file's own never-edit-§8 rule.
 - F-PT-020 (RESOLVED-ratified 2026-08-03, PURPOSE v2.15 §2; **implemented** — mirror corrected 2026-08-10, was stale "open"): an undecided approval expires. CF-SM-APPR gained the terminal, non-blocking `expired` state (24h default TTL, policy-resolvable); on expiry the raising turn's artifacts/worktree are preserved, its claim released without consuming a failure claim, and `app verify` counts only approvals whose raising turn is still live. Encoded in the CF-SM-APPR family text and pinned by `tests/hermetic/cf-reg-205/cf-reg-205-expiry.test.ts`. F-PT-008 is the distinct post-decision grant-expiry question and was later resolved on 2026-08-12: reopen the original item under its original id by appending, never editing, the decision history.
+
+- F-PT-041 (**OPEN, minted 2026-08-21**; raised from Cormidia #467 phase A, B-32):
+  **one writer per learning destination root during the fork/kernel coexistence window.**
+  Phase A lands the kernel path beside the forked engine; both can cut a manifest version
+  and write `learning/bundle/**` on the same root (the kernel through the OKF destination,
+  the fork through its publisher). The manifest history is append-only and both writers key
+  their cuts (the fork by approval id, the kernel by its idempotency key), so interleaving is
+  not corrupting — but a plan bound to a base that the other writer moved refuses, and the
+  episode-sticky canary state of design §8.4 assumes a single publisher. Phase A's rule
+  (research record §5) is that the kernel path is never pointed at a live org home before
+  cutover. Owner question for phase B: ratify "exactly one writer per destination root at any
+  time, switched at cutover" (recommended), or require the kernel to honor the fork's canary
+  and journal state as a second reader. Until ruled, no test encodes either answer; the
+  coexistence failure mode is declared on B-32 and cited as uncovered by CF-B32.
 
 ## Decisions on record
 - Criticality/tiering was elicited teach-first at Phase 1 (no prior anchor); synthesis in system-map.md §5: base C2, function-scoped C3 control points T-1…T-12, C1 leaves, recovery as tier multiplier, compound worst case §5.5.

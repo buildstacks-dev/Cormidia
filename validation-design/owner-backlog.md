@@ -147,6 +147,8 @@ This is a non-normative projection, not a second source of truth. Backlog revisi
 | structural | HB-155 | Governed planning-source scope + harness-native reading (F-PT-039, #386) | landed | Bikram Gupta (`bikramgupta`) | CF-B31, CF-C-B31, CF-INV-017 |
 | structural | HB-155-L2 | Governed planning-source scope + harness-native reading (F-PT-039, #386) (L2/per-commit split) | landed | Bikram Gupta (`bikramgupta`) | CF-B31-L2, CF-C-B31-L2, CF-INV-017-L2 |
 | structural | HB-155-L3 | Per-harness planning-source modality proof (blocked: adapter certification matrix) | blocked | Bikram Gupta (`bikramgupta`) | CF-B31-L3 |
+| structural | HB-156 | Learning kernel boundary — adapters and conformance (Cormidia #467 phase A, B-32) | landed | Bikram Gupta (`bikramgupta`) | CF-C-B32 |
+| structural | HB-156-L2 | Learning kernel boundary — adapters and conformance (L2/per-commit split) | landed | Bikram Gupta (`bikramgupta`) | CF-B32, CF-C-B32-L2, CF-J12-K |
 | unparked | HB-P2 | F-PT-004 ambiguous-byte disposition cases | landed | Bikram Gupta (`bikramgupta`) | CF-C-B15 |
 | unparked | HB-P4 | F-PT-007 concurrent-edit cases | landed | Bikram Gupta (`bikramgupta`) | CF-B14, CF-C-B14 |
 | parked | HB-P6 | HB-P3 / HB-P5 / HB-P6 — UNPARKED 2026-08-12 by your rulings; F-PT-006 clarified by you 2026-08-16, excluding transport filename and producer id; HB-P6 LANDED 2026-08-12 | landed | Bikram Gupta (`bikramgupta`) | CF-C-CORE |

@@ -1,8 +1,8 @@
 {
   "schema": "validation-architect/compiler/v1",
   "accepted": true,
-  "source_fingerprint": "f5ac6dd62e8051c9cd673077a4e76dcdf33e7332c3e807e830aaef4b6ef093fc",
-  "model_identity": "1743c8290202083c0ee91e6a34c39bb364c69d6af21d5181383b9602ba9a8ce3",
+  "source_fingerprint": "ff0266e738596a762a76c82b66d2afc85a511a898cc03b12f04ade8f94245cda",
+  "model_identity": "580381ea00f003f28f1469ac55ee936c06bbdcf5c744720a3ff03d15fe5d8862",
   "versions": {
     "package": "0.4.16",
     "method": "0.8.9",

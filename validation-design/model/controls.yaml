@@ -1760,6 +1760,26 @@ controls:
     owner: bikramgupta
     expected_failure: Seed NC-CF-C-B31-L2 for CF-C-B31-L2 by changing its named fixture, implementation, or evidence so it contradicts the protected CF-C-B31 meaning in this catalog; tests/hermetic/cf-b31/planning-source-scope.test.ts must fail or preserve an incomplete, inconclusive, or unobserved state. The exact planned implementation is the injection point and oracle; prose or a landed ticket can never preserve green.
     family_id: CF-C-B31-L2
+  - id: NC-CF-C-B32
+    title: Seeded violation for CF-C-B32
+    owner: bikramgupta
+    expected_failure: Seed NC-CF-C-B32 for CF-C-B32 by changing its named fixture, implementation, or evidence so it contradicts the protected CF-C-B32 meaning in this catalog; tests/unit/cf-b32/learning-kernel-ports.test.ts must fail or preserve an incomplete, inconclusive, or unobserved state. The exact planned implementation is the injection point and oracle; prose or a landed ticket can never preserve green.
+    family_id: CF-C-B32
+  - id: NC-CF-C-B32-L2
+    title: Seeded violation for CF-C-B32-L2
+    owner: bikramgupta
+    expected_failure: Seed NC-CF-C-B32-L2 for CF-C-B32-L2 by changing its named fixture, implementation, or evidence so it contradicts the protected CF-C-B32-L2 meaning in this catalog; tests/hermetic/cf-b32/learning-kernel-conformance.test.ts must fail or preserve an incomplete, inconclusive, or unobserved state. The exact planned implementation is the injection point and oracle; prose or a landed ticket can never preserve green.
+    family_id: CF-C-B32-L2
+  - id: NC-CF-B32
+    title: Seeded violation for CF-B32
+    owner: bikramgupta
+    expected_failure: Seed NC-CF-B32 for CF-B32 by changing its named fixture, implementation, or evidence so it contradicts the protected CF-B32 meaning in this catalog; tests/hermetic/cf-b32/learning-kernel-failure-modes.test.ts must fail or preserve an incomplete, inconclusive, or unobserved state. The exact planned implementation is the injection point and oracle; prose or a landed ticket can never preserve green.
+    family_id: CF-B32
+  - id: NC-CF-J12-K
+    title: Seeded violation for CF-J12-K
+    owner: bikramgupta
+    expected_failure: Seed NC-CF-J12-K for CF-J12-K by changing its named fixture, implementation, or evidence so it contradicts the protected CF-J12-K meaning in this catalog; tests/hermetic/cf-b32/learning-kernel-journey.test.ts must fail or preserve an incomplete, inconclusive, or unobserved state. The exact planned implementation is the injection point and oracle; prose or a landed ticket can never preserve green.
+    family_id: CF-J12-K
   - id: NC-CF-C-OPJOB
     title: Seeded violation for CF-C-OPJOB
     owner: bikramgupta

@@ -914,6 +914,44 @@ boundary. Failure modes extended accordingly; the honest-fake verdict is unchang
 - **Layer:** 1/2 dominant, plus a per-harness L3 modality-proof leg feeding the
   capability profile.
 
+### B-32 — Cormidia learning adapters ↔ governed-learning-loop kernel `[stated: #467 phase A, 2026-08-21]`
+- **Why it is a boundary:** the learning kernel now lives outside the repository
+  (`@cormidia/learning-loop`, `github.com/cormidia/governed-learning-loop`, consumed as an
+  exact vendored tarball per its Decision 0029 R7) and owns candidate, review, plan, journal,
+  intervention, resolution, and exposure records in its own store under
+  `<state home>/learning-loop/`. Cormidia owns only the mappings onto its public ports:
+  projected episodes as evidence, the approvals store as authority, the OKF bundle and
+  manifest as a destination, loop replay as an executor. Ownership of state and the failure
+  domain both change at this line — the kernel can refuse, crash, or drift in version
+  independently of the approvals store and the org-home git substrate (B-11/B-15), and neither
+  side reads the other's records except through the adapter. The forked engine under
+  `src/org/learning/` remains the operator path until phase B; in phase A the kernel path is
+  reachable only through `createCormidiaLearningLoop` (`src/org/learning-loop/loop.ts`).
+- **Boundary test:** the kernel can be absent or refusing while the forked engine, approvals,
+  and runlogs stay intact; Cormidia's state home can be missing or corrupt while a composed
+  kernel keeps its own store consistent. PASS, both directions.
+- **Journeys / tier:** J-12 on the kernel path (CF-J12-K); T-10 adversarial depth.
+- **Failure modes:** vendored kernel version or record schema skew (tarball drift,
+  `schemaVersion` mismatch); a kernel write reaching a protected org-home or app surface other
+  than the destination's concept file and manifest; a crash between the destination's manifest
+  cut and its receipt; an approved plan whose destination base moved; a reused idempotency key
+  carrying different effect bytes; an active canary on the destination root at apply time; a
+  corrupt or mutated projected episode under an import; an approval item that is not a
+  learning-loop publish, is unknown, or binds a different digest; a replay attestation that
+  does not echo the request or the registration; the forked engine and the kernel path both
+  writing one destination root during coexistence (F-PT-041).
+- **Honest fake:** YES — the kernel's own conformance suites (`/testing`, part of its public
+  API) run unchanged against the Cormidia adapters over temp org/app/state homes, and the
+  kernel is exercised through its real file store; the replay runner is a scripted host seam;
+  no provider is involved. Crash-mid-step is scripted by deleting the destination receipt
+  between the manifest cut and the retry.
+- **Unproven real:** the production replay runner (the fork's worktree-isolated loop replay)
+  and every non-OKF destination (proposals, GitHub tickets, evaluation gates) bind in phase B;
+  parity of kernel-published bytes against a captured live org home is phase-B evidence, not
+  claimable here.
+- **Layer:** 1/2.
+- **Contract:** `contracts/B-32-learning-kernel-ports.md` (CORMIDIA-C-B32-001…005).
+
 ## 2. Not boundaries (named, so nobody re-litigates)
 
 - `org → loop → runtime` module layering — import discipline inside one process.
@@ -1009,6 +1047,7 @@ flowchart LR
     HUM -- edits --> HCO
     CORMIDIA -- B-14 --> HCO
     LRN -- B-11 --> ORGH
+    LRN -- B-32 --> KRN[governed-learning-loop kernel — vendored @cormidia/learning-loop]
     INBX -- B-13 --> TICK
     CMP -- B-18 --> CAND
     CMP -- B-19 --> MAT

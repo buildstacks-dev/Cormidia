@@ -2703,3 +2703,35 @@ tickets:
     depends_on:
       - HB-137-L3
       - HB-155-L2
+  - id: HB-156
+    title: "Learning kernel boundary — adapters and conformance (Cormidia #467 phase A, B-32)"
+    wave: structural
+    status: landed
+    owner: bikramgupta
+    executor: build-agent
+    lane: per-commit
+    layer: L1
+    acceptance_criteria:
+      - "Archived source-ticket text (provenance only; dependency words here are non-operative): Cormidia #467 phase A — build the Cormidia adapter layer onto the governed-learning-loop kernel's public ports (scope, identity, content policy, episode evidence source, approvals-backed authority, OKF concept destination, replay-executor seam, composition root), consume the kernel by the ruled vendored-tarball mechanism, record the compatibility policy, and run the kernel's conformance suites against the adapters while the forked engine stays the operator path. *Acceptance:* (1) every adapter honors its port contract clause by clause with a seeded violation per clause; (2) the kernel's store, destination and replay-executor conformance suites pass unchanged; (3) a pending, denied, missing, or byte-mismatched approval publishes nothing; (4) an approved item publishes exactly once with one manifest cut and a no-op replay; (5) the kernel writes only its state directory plus the destination's concept and manifest; (6) declared failure modes are scripted red-then-green. Executor: build-agent."
+      - "This L1/per-commit output owns exactly these canonical families and no other layer gates it: CF-C-B32."
+      - A missing implementation on pending, blocked, or parked work remains incomplete/inconclusive; landed work with an absent exact planned test or evidence artifact is red.
+      - "Navigation and status rule: depends_on is the only operative ticket dependency; other HB/F-PT references are provenance, historical links, or textual prerequisites unless this output names an edge. A ticket is engineering-ready only when it is pending, every depends_on output is landed, none of its families is blocked, its acceptance names no unresolved product-truth, sampling, activation, or required ticket split, and its lane needs no missing per-run authorization. Blocked and parked tickets are never executable even when their dependencies are landed. The owner briefing's build-order list is inventory, not a ready queue: apply every predicate here before selecting work. Proposed-wave work remains design-only until its named activation is resolved and a checked-model revision changes its blocked outputs to pending. Ticket landed records implementation work, while family status and evidence state separately govern what is implemented, observed, current, or claimable."
+    family_ids:
+      - CF-C-B32
+  - id: HB-156-L2
+    title: "Learning kernel boundary — adapters and conformance (L2/per-commit split)"
+    wave: structural
+    status: landed
+    owner: bikramgupta
+    executor: build-agent
+    lane: per-commit
+    layer: L2
+    acceptance_criteria:
+      - "Archived source-ticket text (provenance only; dependency words here are non-operative): Cormidia #467 phase A — build the Cormidia adapter layer onto the governed-learning-loop kernel's public ports (scope, identity, content policy, episode evidence source, approvals-backed authority, OKF concept destination, replay-executor seam, composition root), consume the kernel by the ruled vendored-tarball mechanism, record the compatibility policy, and run the kernel's conformance suites against the adapters while the forked engine stays the operator path. *Acceptance:* (1) every adapter honors its port contract clause by clause with a seeded violation per clause; (2) the kernel's store, destination and replay-executor conformance suites pass unchanged; (3) a pending, denied, missing, or byte-mismatched approval publishes nothing; (4) an approved item publishes exactly once with one manifest cut and a no-op replay; (5) the kernel writes only its state directory plus the destination's concept and manifest; (6) declared failure modes are scripted red-then-green. Executor: build-agent."
+      - "This L2/per-commit output owns exactly these canonical families and no other layer gates it: CF-B32, CF-C-B32-L2, CF-J12-K."
+      - A missing implementation on pending, blocked, or parked work remains incomplete/inconclusive; landed work with an absent exact planned test or evidence artifact is red.
+      - "Navigation and status rule: depends_on is the only operative ticket dependency; other HB/F-PT references are provenance, historical links, or textual prerequisites unless this output names an edge. A ticket is engineering-ready only when it is pending, every depends_on output is landed, none of its families is blocked, its acceptance names no unresolved product-truth, sampling, activation, or required ticket split, and its lane needs no missing per-run authorization. Blocked and parked tickets are never executable even when their dependencies are landed. The owner briefing's build-order list is inventory, not a ready queue: apply every predicate here before selecting work. Proposed-wave work remains design-only until its named activation is resolved and a checked-model revision changes its blocked outputs to pending. Ticket landed records implementation work, while family status and evidence state separately govern what is implemented, observed, current, or claimable."
+    family_ids:
+      - CF-B32
+      - CF-C-B32-L2
+      - CF-J12-K

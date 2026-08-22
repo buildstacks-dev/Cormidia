@@ -77,6 +77,7 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.224",
+    "@cormidia/learning-loop": "file:vendor/cormidia-learning-loop-0.1.0.tgz",
     "@earendil-works/pi-coding-agent": "0.84.1",
     "@openai/codex": "0.147.0",
     "@opencode-ai/sdk": "1.18.15",

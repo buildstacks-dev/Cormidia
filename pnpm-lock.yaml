@@ -11,6 +11,9 @@ importers:
       '@anthropic-ai/claude-agent-sdk':
         specifier: 0.3.224
         version: 0.3.224(@anthropic-ai/sdk@0.110.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(zod@4.4.3)
+      '@cormidia/learning-loop':
+        specifier: file:vendor/cormidia-learning-loop-0.1.0.tgz
+        version: file:vendor/cormidia-learning-loop-0.1.0.tgz
       '@earendil-works/pi-coding-agent':
         specifier: 0.84.1
         version: 0.84.1(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(ws@8.21.0)(zod@4.4.3)
@@ -275,6 +278,11 @@ packages:
     engines: {node: '>=14.21.3'}
     cpu: [x64]
     os: [win32]
+
+  '@cormidia/learning-loop@file:vendor/cormidia-learning-loop-0.1.0.tgz':
+    resolution: {integrity: sha512-HZiQE8AdffHh7fB2/827II7zRafPr3FfQNv1o9/rZuhN21kC8Zd68knsBqrNYZ1cegnoHYBuXkQ7SJ6ElGbIqg==, tarball: file:vendor/cormidia-learning-loop-0.1.0.tgz}
+    version: 0.1.0
+    engines: {node: '>=22.18'}
 
   '@earendil-works/pi-agent-core@0.84.1':
     resolution: {integrity: sha512-evyzXYWCLQGmcaBYHlmSku02r8qoN4SGI60GZABo6iV+H+nqX+P9ud8fEZ4GmRq9mUSREvvfX+w9dA9ThF9C6w==}
@@ -1994,6 +2002,8 @@ snapshots:
 
   '@biomejs/cli-win32-x64@2.5.7':
     optional: true
+
+  '@cormidia/learning-loop@file:vendor/cormidia-learning-loop-0.1.0.tgz': {}
 
   '@earendil-works/pi-agent-core@0.84.1(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(ws@8.21.0)(zod@4.4.3)':
     dependencies:

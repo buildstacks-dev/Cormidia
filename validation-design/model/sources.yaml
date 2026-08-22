@@ -223,6 +223,11 @@ sources:
     path: validation-design/contracts/B-31-planning-source-scope.md
     locator: "Exact checked source: validation-design/contracts/B-31-planning-source-scope.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
     quote: "# Boundary contract — B-31 (declared planning-source scope ↔ harness-native reading)"
+  - id: SOURCE-CONTRACT-B-32-LEARNING-KERNEL-PORTS
+    kind: doc
+    path: validation-design/contracts/B-32-learning-kernel-ports.md
+    locator: "Exact checked source: validation-design/contracts/B-32-learning-kernel-ports.md. Resolve cited IDs and headings in that file; this reader bundle carries navigation and an exact source quote, not the source bytes."
+    quote: "# Boundary contract — B-32 (Cormidia learning adapters ↔ `@cormidia/learning-loop` kernel)"
   - id: SOURCE-CONTRACT-OP-BATCHING
     kind: doc
     path: validation-design/contracts/OP-batching.md

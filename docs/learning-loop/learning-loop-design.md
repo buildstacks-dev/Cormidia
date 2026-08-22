@@ -924,6 +924,16 @@ regressions. Agreement alone is insufficient.
 
 ## 15. Extraction Later
 
+> **Migration status (2026-08-21, #467 phase A).** The kernel now lives in
+> `github.com/cormidia/governed-learning-loop` (`@cormidia/learning-loop`, vendored
+> as an exact tarball). `src/org/learning-loop/` maps Cormidia's episodes, approvals,
+> OKF bundle, and replay onto its public ports and passes its conformance suites;
+> the engine described in this document remains the operator path until phase B
+> cuts over and retires it. Policy and deltas:
+> `research/2026-08-21_learning-loop-migration-compatibility-policy.md`; boundary
+> contract: `validation-design/contracts/B-32-learning-kernel-ports.md`.
+
+
 If a second orchestrator wants this system, the interfaces can be extracted:
 EventSink, EpisodeProjector, Distiller, Reviewer, Publisher, Store, Resolver,
 ExperimentRunner, Metrics. Until then, the implementation stays inside Cormidia

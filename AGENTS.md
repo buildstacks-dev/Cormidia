@@ -22,6 +22,7 @@ inventory.
 | `src/runtime/` | Runtime contract + adapters — `src/runtime/AGENTS.md` |
 | `src/loop/` | Build loop: passes, briefs, quality gates, verdicts, ticket state machine (`docs/loop/design.md`) |
 | `src/org/` | Standing-org layer: lifecycle, bootstrap, scheduler, approvals, budget, learning; `src/org/home.ts` owns the package/org/state boundary |
+| `src/org/learning-loop/` | Host adapters onto the vendored `@cormidia/learning-loop` kernel (Cormidia #467 phase A; B-32): scope/identity/content-policy mapping, episode evidence source, approvals-backed authority port, OKF concept destination, replay-executor seam, composition root. The forked engine under `src/org/learning/` stays the operator path until phase B |
 | `src/observe/` · `src/report/` · `src/narrative/` | Presentation-only leaves — local AGENTS.md ×3 |
 | `src/cli/` | One module per subcommand; `src/cli.ts` is a thin dispatch table |
 | `src/jobs/` · `docs/jobs/` | Ad-hoc job graphs (`cormidia-job`, a SECOND binary) — outside the governed loop: no review, verdicts, tickets, or GitHub authority |
@@ -93,8 +94,10 @@ inventory.
   (`scripts/check-type-ratchet.mjs`), not style choices; `unknown` plus
   narrowing is the sanctioned exit.
 - **Dependencies minimal and boring:** prefer `node:` built-ins;
-  `yaml` plus the four provider SDKs are the whole runtime set, and adding one
-  is a decision, not a convenience. Cursor, Grok Build and Muse Code are
+  `yaml`, the four provider SDKs, and the vendored `@cormidia/learning-loop`
+  kernel (an exact `file:vendor/` tarball per governed-learning-loop Decision
+  0029 R7, identity in `research/2026-08-21_learning-loop-migration-compatibility-policy.md`)
+  are the whole runtime set, and adding one is a decision, not a convenience. Cursor, Grok Build and Muse Code are
   required preinstalled binaries — Cormidia never installs a provider (#224).
 - **Grok Build is sandbox-only** until #339's human vendor risk review is
   recorded: never point a grok turn at a real repository and never assign it a
@@ -153,7 +156,7 @@ per routing.md's adoption notes; that fallback is forbidden for
 - Product status: README → Status / Known limitations · decisions: `docs/PURPOSE.md` · platform development: `docs/DEVELOPMENT.md`
 - `docs/architecture.md` is the thin system map (stable §numbering); depth lives in topic folders — one per subsystem, `design.md` as the folder's contract
 - Build loop: `docs/loop/` · dispatch/scheduler: `docs/scheduler/` · approvals/release: `docs/approvals/design.md`
-- Episode contract: `docs/episodes/contract.md` · qualification: `docs/qualification/` · learning loop: `docs/learning-loop/`
+- Episode contract: `docs/episodes/contract.md` · qualification: `docs/qualification/` · learning loop: `docs/learning-loop/` (kernel migration: `research/2026-08-21_learning-loop-migration-compatibility-policy.md`, `validation-design/contracts/B-32-learning-kernel-ports.md`)
 - Adapters: `docs/harness/` (capability-matrix · adding-updating · qualification-evidence)
 - Org layer: `docs/org/` (context · memory · apps · onboarding · manual-e2e-runbook)
 - Jobs (`cormidia-job`): `docs/jobs/design.md` — §3 is the non-inherited-guarantee list; it is NOT the build loop
